@@ -91,17 +91,27 @@ export const useAudioEngine = (options: UseAudioEngineOptions = {}) => {
       
       // Create all nodes
       masterGainRef.current = ctx.createGain();
+      masterGainRef.current.gain.value = 0.75; // Default volume
+      
       gainNodeRef.current = ctx.createGain();
+      gainNodeRef.current.gain.value = 1;
+      
       dryGainRef.current = ctx.createGain();
+      dryGainRef.current.gain.value = 1; // Full dry signal by default
       
       // Delay chain
       delayNodeRef.current = ctx.createDelay(2);
+      delayNodeRef.current.delayTime.value = 0.35;
       delayGainRef.current = ctx.createGain();
+      delayGainRef.current.gain.value = 0; // Delay off by default
       delayFeedbackRef.current = ctx.createGain();
+      delayFeedbackRef.current.gain.value = 0;
       
       // Filter
       filterNodeRef.current = ctx.createBiquadFilter();
       filterNodeRef.current.type = 'lowpass';
+      filterNodeRef.current.frequency.value = 20000; // Full open by default
+      filterNodeRef.current.Q.value = 0.5;
       
       // Distortion
       distortionNodeRef.current = ctx.createWaveShaper();
@@ -110,6 +120,7 @@ export const useAudioEngine = (options: UseAudioEngineOptions = {}) => {
       // Reverb
       convolverNodeRef.current = ctx.createConvolver();
       reverbGainRef.current = ctx.createGain();
+      reverbGainRef.current.gain.value = 0; // Reverb off by default
       
       // Create initial reverb impulse
       convolverNodeRef.current.buffer = createReverbImpulse(ctx, 2, 2);
@@ -119,7 +130,7 @@ export const useAudioEngine = (options: UseAudioEngineOptions = {}) => {
       gainNodeRef.current.connect(filterNodeRef.current);
       filterNodeRef.current.connect(distortionNodeRef.current);
       
-      // Dry signal
+      // Dry signal (main path)
       distortionNodeRef.current.connect(dryGainRef.current);
       dryGainRef.current.connect(masterGainRef.current);
       
@@ -216,12 +227,8 @@ export const useAudioEngine = (options: UseAudioEngineOptions = {}) => {
       setCurrentTime(newTime);
       options.onTimeUpdate?.(newTime);
       
-      if (newTime >= audioBufferRef.current.duration) {
-        setIsPlaying(false);
-        setCurrentTime(0);
-        pauseTimeRef.current = 0;
-        options.onEnded?.();
-      } else {
+      // Continue loop if still playing
+      if (isPlaying && newTime < audioBufferRef.current.duration) {
         animationFrameRef.current = requestAnimationFrame(updateTime);
       }
     }
@@ -301,7 +308,14 @@ export const useAudioEngine = (options: UseAudioEngineOptions = {}) => {
 
   // Play audio
   const play = useCallback(() => {
-    if (!audioBufferRef.current || !audioContextRef.current || !gainNodeRef.current) return;
+    if (!audioBufferRef.current || !audioContextRef.current || !gainNodeRef.current) {
+      console.log('Play aborted: missing buffer or context', {
+        hasBuffer: !!audioBufferRef.current,
+        hasContext: !!audioContextRef.current,
+        hasGain: !!gainNodeRef.current
+      });
+      return;
+    }
     
     if (audioContextRef.current.state === 'suspended') {
       audioContextRef.current.resume();
@@ -309,8 +323,12 @@ export const useAudioEngine = (options: UseAudioEngineOptions = {}) => {
     
     // Stop any existing source
     if (sourceNodeRef.current) {
-      sourceNodeRef.current.stop();
-      sourceNodeRef.current.disconnect();
+      try {
+        sourceNodeRef.current.stop();
+        sourceNodeRef.current.disconnect();
+      } catch (e) {
+        // Ignore if already stopped
+      }
     }
     
     // Create new source
@@ -318,12 +336,23 @@ export const useAudioEngine = (options: UseAudioEngineOptions = {}) => {
     source.buffer = audioBufferRef.current;
     source.connect(gainNodeRef.current);
     
+    // Handle end of playback
+    source.onended = () => {
+      if (sourceNodeRef.current === source) {
+        setIsPlaying(false);
+        pauseTimeRef.current = 0;
+        setCurrentTime(0);
+        options.onEnded?.();
+      }
+    };
+    
     sourceNodeRef.current = source;
     startTimeRef.current = audioContextRef.current.currentTime;
     
+    console.log('Starting playback from', pauseTimeRef.current, 'duration:', audioBufferRef.current.duration);
     source.start(0, pauseTimeRef.current);
     setIsPlaying(true);
-  }, []);
+  }, [options]);
 
   // Pause audio
   const pause = useCallback(() => {
