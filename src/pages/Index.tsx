@@ -14,21 +14,11 @@ const Index = () => {
       <main className="container max-w-6xl mx-auto px-4 py-12">
         {/* Hero Section */}
         <div className="text-center py-12 animate-slide-up">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass mb-6">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-sm text-muted-foreground">Профессиональная обработка аудио</span>
-          </div>
-          
           <h1 className="text-5xl md:text-7xl font-bold mb-6">
             <span className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
               SoundForge
             </span>
           </h1>
-          
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-4">
-            Создавайте и редактируйте музыку с профессиональными эффектами, 
-            визуализацией и экспортом
-          </p>
         </div>
 
         {/* Mode Selection Cards */}
@@ -130,30 +120,6 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Features Section */}
-        <div className="mt-20 animate-slide-up" style={{ animationDelay: '0.4s' }}>
-          <h3 className="text-center text-2xl font-semibold mb-10 text-muted-foreground">
-            Возможности платформы
-          </h3>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {[
-              { icon: '🎛️', title: 'Эффекты', desc: 'Delay, Reverb, Filter' },
-              { icon: '✂️', title: 'Редактирование', desc: 'Обрезка, копирование' },
-              { icon: '📊', title: 'Визуализация', desc: 'Waveform, спектр' },
-              { icon: '💾', title: 'Экспорт', desc: 'WAV, MP3, FLAC' },
-            ].map((feature, i) => (
-              <div
-                key={feature.title}
-                className="text-center p-6 rounded-2xl glass hover:bg-card/60 transition-all duration-300"
-              >
-                <div className="text-4xl mb-3">{feature.icon}</div>
-                <h4 className="font-semibold mb-1">{feature.title}</h4>
-                <p className="text-sm text-muted-foreground">{feature.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
       </main>
     </div>
   );
