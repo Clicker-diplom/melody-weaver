@@ -9,6 +9,7 @@ import TransportControls from '@/components/audio/TransportControls';
 import VolumeControl from '@/components/audio/VolumeControl';
 import ExportDialog from '@/components/audio/ExportDialog';
 import { cn } from '@/lib/utils';
+import type { AudioEffects } from '@/hooks/useAudioEngine';
 
 interface Note {
   id: string;
@@ -30,8 +31,6 @@ interface Track {
 const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const octaves = [5, 4, 3, 2];
 
-import type { AudioEffects } from '@/hooks/useAudioEngine';
-
 const Creator = () => {
   const navigate = useNavigate();
   const [isPlaying, setIsPlaying] = useState(false);
@@ -48,6 +47,7 @@ const Creator = () => {
     filter: { enabled: false, cutoff: 8000, resonance: 20 },
     distortion: { enabled: false, drive: 30, tone: 50, mix: 50 },
   });
+
   const [tracks, setTracks] = useState<Track[]>([
     {
       id: 'track-1',
@@ -76,24 +76,150 @@ const Creator = () => {
   ]);
 
   const audioContextRef = useRef<AudioContext | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
-  const activeOscillatorsRef = useRef<Map<string, OscillatorNode>>(new Map());
+  const masterGainRef = useRef<GainNode | null>(null);
+  const delayNodeRef = useRef<DelayNode | null>(null);
+  const delayGainRef = useRef<GainNode | null>(null);
+  const delayFeedbackRef = useRef<GainNode | null>(null);
+  const filterNodeRef = useRef<BiquadFilterNode | null>(null);
+  const distortionNodeRef = useRef<WaveShaperNode | null>(null);
+  const convolverNodeRef = useRef<ConvolverNode | null>(null);
+  const reverbGainRef = useRef<GainNode | null>(null);
+  const dryGainRef = useRef<GainNode | null>(null);
   const playIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Create distortion curve
+  const makeDistortionCurve = useCallback((amount: number) => {
+    const k = amount;
+    const n_samples = 44100;
+    const curve = new Float32Array(n_samples);
+    const deg = Math.PI / 180;
+    for (let i = 0; i < n_samples; i++) {
+      const x = (i * 2) / n_samples - 1;
+      curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+    }
+    return curve;
+  }, []);
+
+  // Create reverb impulse response
+  const createReverbImpulse = useCallback((ctx: AudioContext, duration: number, decay: number) => {
+    const sampleRate = ctx.sampleRate;
+    const length = sampleRate * duration;
+    const impulse = ctx.createBuffer(2, length, sampleRate);
+    
+    for (let channel = 0; channel < 2; channel++) {
+      const channelData = impulse.getChannelData(channel);
+      for (let i = 0; i < length; i++) {
+        channelData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+      }
+    }
+    return impulse;
+  }, []);
+
+  // Initialize audio context with effects chain
   useEffect(() => {
-    audioContextRef.current = new AudioContext();
-    gainNodeRef.current = audioContextRef.current.createGain();
-    gainNodeRef.current.connect(audioContextRef.current.destination);
+    const ctx = new AudioContext();
+    audioContextRef.current = ctx;
+    
+    // Create nodes
+    masterGainRef.current = ctx.createGain();
+    dryGainRef.current = ctx.createGain();
+    
+    // Delay
+    delayNodeRef.current = ctx.createDelay(2);
+    delayGainRef.current = ctx.createGain();
+    delayFeedbackRef.current = ctx.createGain();
+    
+    // Filter
+    filterNodeRef.current = ctx.createBiquadFilter();
+    filterNodeRef.current.type = 'lowpass';
+    filterNodeRef.current.frequency.value = 20000;
+    
+    // Distortion
+    distortionNodeRef.current = ctx.createWaveShaper();
+    distortionNodeRef.current.oversample = '4x';
+    
+    // Reverb
+    convolverNodeRef.current = ctx.createConvolver();
+    reverbGainRef.current = ctx.createGain();
+    convolverNodeRef.current.buffer = createReverbImpulse(ctx, 2, 2);
+    
+    // Connect: master -> filter -> distortion -> dry + delay + reverb -> destination
+    masterGainRef.current.connect(filterNodeRef.current);
+    filterNodeRef.current.connect(distortionNodeRef.current);
+    
+    // Dry path
+    distortionNodeRef.current.connect(dryGainRef.current);
+    dryGainRef.current.connect(ctx.destination);
+    
+    // Delay path
+    distortionNodeRef.current.connect(delayNodeRef.current);
+    delayNodeRef.current.connect(delayGainRef.current);
+    delayGainRef.current.connect(ctx.destination);
+    delayNodeRef.current.connect(delayFeedbackRef.current);
+    delayFeedbackRef.current.connect(delayNodeRef.current);
+    
+    // Reverb path
+    distortionNodeRef.current.connect(convolverNodeRef.current);
+    convolverNodeRef.current.connect(reverbGainRef.current);
+    reverbGainRef.current.connect(ctx.destination);
     
     return () => {
-      audioContextRef.current?.close();
+      ctx.close();
     };
-  }, []);
+  }, [createReverbImpulse]);
+
+  // Update effects parameters
+  useEffect(() => {
+    if (!audioContextRef.current) return;
+    
+    // Delay
+    if (delayNodeRef.current && delayGainRef.current && delayFeedbackRef.current) {
+      delayNodeRef.current.delayTime.value = effects.delay.time / 1000;
+      delayGainRef.current.gain.value = effects.delay.enabled ? effects.delay.mix / 100 : 0;
+      delayFeedbackRef.current.gain.value = effects.delay.enabled ? effects.delay.feedback / 100 : 0;
+    }
+    
+    // Filter
+    if (filterNodeRef.current) {
+      filterNodeRef.current.frequency.value = effects.filter.enabled ? effects.filter.cutoff : 20000;
+      filterNodeRef.current.Q.value = effects.filter.enabled ? effects.filter.resonance / 5 : 0.5;
+    }
+    
+    // Distortion
+    if (distortionNodeRef.current) {
+      if (effects.distortion.enabled) {
+        distortionNodeRef.current.curve = makeDistortionCurve(effects.distortion.drive * 2);
+      } else {
+        distortionNodeRef.current.curve = null;
+      }
+    }
+    
+    // Reverb
+    if (reverbGainRef.current) {
+      reverbGainRef.current.gain.value = effects.reverb.enabled ? effects.reverb.mix / 100 : 0;
+    }
+    
+    // Update reverb impulse
+    if (convolverNodeRef.current && effects.reverb.enabled) {
+      const size = effects.reverb.size / 30;
+      const decay = effects.reverb.decay / 20;
+      convolverNodeRef.current.buffer = createReverbImpulse(audioContextRef.current, size, decay);
+    }
+    
+    // Dry gain
+    if (dryGainRef.current) {
+      const wetMix = (
+        (effects.delay.enabled ? effects.delay.mix / 100 : 0) +
+        (effects.reverb.enabled ? effects.reverb.mix / 100 : 0)
+      ) / 2;
+      dryGainRef.current.gain.value = 1 - wetMix * 0.5;
+    }
+  }, [effects, makeDistortionCurve, createReverbImpulse]);
 
   // Update volume
   useEffect(() => {
-    if (gainNodeRef.current) {
-      gainNodeRef.current.gain.value = isMuted ? 0 : volume / 100;
+    if (masterGainRef.current) {
+      masterGainRef.current.gain.value = isMuted ? 0 : volume / 100;
     }
   }, [volume, isMuted]);
 
@@ -109,7 +235,7 @@ const Creator = () => {
           const currentBeatInt = Math.floor(next);
           
           // Trigger notes on beat change
-          if (currentBeatInt !== lastBeat && audioContextRef.current && gainNodeRef.current) {
+          if (currentBeatInt !== lastBeat && audioContextRef.current && masterGainRef.current) {
             lastBeat = currentBeatInt;
             
             tracks.forEach(track => {
@@ -129,7 +255,7 @@ const Creator = () => {
                   noteGain.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current!.currentTime + noteDuration * 0.9);
                   
                   osc.connect(noteGain);
-                  noteGain.connect(gainNodeRef.current!);
+                  noteGain.connect(masterGainRef.current!);
                   
                   osc.start();
                   osc.stop(audioContextRef.current!.currentTime + noteDuration);
@@ -154,7 +280,11 @@ const Creator = () => {
   }, [isPlaying, bpm, totalBeats, tracks]);
 
   const playNote = useCallback((pitch: number, octave: number, duration: number = 0.3) => {
-    if (!audioContextRef.current || !gainNodeRef.current) return;
+    if (!audioContextRef.current || !masterGainRef.current) return;
+    
+    if (audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume();
+    }
     
     const frequency = 440 * Math.pow(2, (pitch - 9 + (octave - 4) * 12) / 12);
     const osc = audioContextRef.current.createOscillator();
@@ -167,7 +297,7 @@ const Creator = () => {
     noteGain.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + duration);
     
     osc.connect(noteGain);
-    noteGain.connect(gainNodeRef.current);
+    noteGain.connect(masterGainRef.current);
     
     osc.start();
     osc.stop(audioContextRef.current.currentTime + duration);
@@ -254,9 +384,24 @@ const Creator = () => {
       const bufferLength = Math.ceil(totalDuration * sampleRate);
       
       const offlineCtx = new OfflineAudioContext(2, bufferLength, sampleRate);
+      
+      // Create effect chain in offline context
       const masterGain = offlineCtx.createGain();
       masterGain.gain.value = volume / 100;
-      masterGain.connect(offlineCtx.destination);
+      
+      const filter = offlineCtx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = effects.filter.enabled ? effects.filter.cutoff : 20000;
+      filter.Q.value = effects.filter.enabled ? effects.filter.resonance / 5 : 0.5;
+      
+      const distortion = offlineCtx.createWaveShaper();
+      if (effects.distortion.enabled) {
+        distortion.curve = makeDistortionCurve(effects.distortion.drive * 2);
+      }
+      
+      masterGain.connect(filter);
+      filter.connect(distortion);
+      distortion.connect(offlineCtx.destination);
       
       // Schedule all notes
       tracks.forEach(track => {
@@ -302,7 +447,7 @@ const Creator = () => {
     } finally {
       setIsExporting(false);
     }
-  }, [bpm, totalBeats, tracks, volume]);
+  }, [bpm, totalBeats, tracks, volume, effects, makeDistortionCurve]);
 
   const currentTrack = tracks.find(t => t.id === selectedTrack);
 
@@ -492,6 +637,7 @@ const Creator = () => {
                                   style={{
                                     backgroundColor: currentTrack?.color,
                                     width: `${noteOnBeat.duration * 32}px`,
+                                    boxShadow: `0 0 10px ${currentTrack?.color}`,
                                   }}
                                 />
                               )}
@@ -501,7 +647,7 @@ const Creator = () => {
 
                         {/* Playhead */}
                         <div
-                          className="absolute top-0 bottom-0 w-0.5 bg-primary z-10 pointer-events-none"
+                          className="absolute top-0 bottom-0 w-0.5 bg-primary pointer-events-none transition-all duration-75"
                           style={{
                             left: `${(currentBeat / totalBeats) * 100}%`,
                             boxShadow: '0 0 10px hsl(var(--primary))',

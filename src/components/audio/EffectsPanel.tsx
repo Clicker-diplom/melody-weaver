@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { Power, Waves, Timer, Radio, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import EffectKnob from './EffectKnob';
@@ -47,7 +48,7 @@ const effectConfigs: EffectConfig[] = [
 ];
 
 const EffectsPanel = ({ effects, onEffectsChange, className }: EffectsPanelProps) => {
-  const [selectedEffect, setSelectedEffect] = React.useState<EffectId>('delay');
+  const [selectedEffect, setSelectedEffect] = useState<EffectId>('delay');
 
   const toggleEffect = (id: EffectId) => {
     onEffectsChange({
@@ -241,5 +242,4 @@ const EffectsPanel = ({ effects, onEffectsChange, className }: EffectsPanelProps
   );
 };
 
-import React from 'react';
 export default EffectsPanel;
