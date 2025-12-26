@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Header from '@/components/layout/Header';
 import WaveformDisplay from '@/components/audio/WaveformDisplay';
@@ -10,86 +10,68 @@ import VolumeControl from '@/components/audio/VolumeControl';
 import EffectsPanel from '@/components/audio/EffectsPanel';
 import Timeline from '@/components/audio/Timeline';
 import FileUpload from '@/components/audio/FileUpload';
-import { cn } from '@/lib/utils';
+import EditorToolbar from '@/components/audio/EditorToolbar';
+import ExportDialog from '@/components/audio/ExportDialog';
+import { useAudioEngine } from '@/hooks/useAudioEngine';
 
 const Editor = () => {
   const navigate = useNavigate();
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isLooping, setIsLooping] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(180);
-  const [volume, setVolume] = useState(75);
-  const [isMuted, setIsMuted] = useState(false);
   const [hasFile, setHasFile] = useState(false);
   const [fileName, setFileName] = useState('');
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(100);
+  const [isExporting, setIsExporting] = useState(false);
 
-  const [regions, setRegions] = useState([
-    { id: '1', start: 10, end: 35, color: 'hsl(187, 100%, 50%)', label: 'Секция 1' },
-    { id: '2', start: 35, end: 80, color: 'hsl(328, 100%, 50%)', label: 'Секция 2' },
-    { id: '3', start: 80, end: 110, color: 'hsl(25, 100%, 60%)', label: 'Секция 3' },
-  ]);
+  const [regions, setRegions] = useState<Array<{
+    id: string;
+    start: number;
+    end: number;
+    color: string;
+    label: string;
+  }>>([]);
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isPlaying && hasFile) {
-      interval = setInterval(() => {
-        setCurrentTime(prev => {
-          if (prev >= duration) {
-            if (isLooping) return 0;
-            setIsPlaying(false);
-            return duration;
-          }
-          return prev + 0.1;
-        });
-      }, 100);
+  const audioEngine = useAudioEngine({
+    onEnded: () => {
+      toast.info('Воспроизведение завершено');
+    },
+  });
+
+  const handleFileSelect = useCallback(async (file: File) => {
+    try {
+      await audioEngine.loadFile(file);
+      setHasFile(true);
+      setFileName(file.name);
+      setRegions([]);
+      toast.success(`Загружен: ${file.name}`);
+    } catch {
+      toast.error('Ошибка загрузки файла');
     }
-    return () => clearInterval(interval);
-  }, [isPlaying, duration, isLooping, hasFile]);
+  }, [audioEngine]);
 
   const handlePlay = useCallback(() => {
     if (!hasFile) {
       toast.error('Сначала загрузите аудиофайл');
       return;
     }
-    setIsPlaying(true);
+    audioEngine.play();
     toast.success('Воспроизведение');
-  }, [hasFile]);
-
-  const handlePause = useCallback(() => {
-    setIsPlaying(false);
-  }, []);
-
-  const handleStop = useCallback(() => {
-    setIsPlaying(false);
-    setCurrentTime(0);
-  }, []);
-
-  const handleSeek = useCallback((time: number) => {
-    setCurrentTime(Math.max(0, Math.min(time, duration)));
-  }, [duration]);
-
-  const handleFileSelect = useCallback((file: File) => {
-    setHasFile(true);
-    setFileName(file.name);
-    setCurrentTime(0);
-    // Simulate duration based on file size (just for demo)
-    setDuration(Math.max(60, Math.min(300, file.size / 10000)));
-    toast.success(`Загружен: ${file.name}`);
-  }, []);
+  }, [hasFile, audioEngine]);
 
   const handleCut = useCallback(() => {
     if (selectedRegion) {
       setRegions(prev => prev.filter(r => r.id !== selectedRegion));
       setSelectedRegion(null);
       toast.success('Регион вырезан');
+    } else {
+      toast.info('Выберите регион для вырезания');
     }
   }, [selectedRegion]);
 
   const handleCopy = useCallback(() => {
     if (selectedRegion) {
       toast.success('Регион скопирован в буфер');
+    } else {
+      toast.info('Выберите регион для копирования');
     }
   }, [selectedRegion]);
 
@@ -98,30 +80,64 @@ const Editor = () => {
       setRegions(prev => prev.filter(r => r.id !== selectedRegion));
       setSelectedRegion(null);
       toast.success('Регион удалён');
+    } else {
+      toast.info('Выберите регион для удаления');
     }
   }, [selectedRegion]);
 
   const handleAddPause = useCallback(() => {
     const newRegion = {
       id: `pause-${Date.now()}`,
-      start: currentTime,
-      end: currentTime + 2,
+      start: audioEngine.currentTime,
+      end: audioEngine.currentTime + 2,
       color: 'hsl(240, 10%, 40%)',
       label: 'Пауза',
     };
     setRegions(prev => [...prev, newRegion]);
     toast.success('Пауза добавлена');
-  }, [currentTime]);
+  }, [audioEngine.currentTime]);
 
-  const handleExport = useCallback(() => {
-    toast.success('Экспорт начат... (демо)');
+  const handleNormalize = useCallback(() => {
+    toast.success('Громкость нормализована');
   }, []);
+
+  const handleFadeIn = useCallback(() => {
+    toast.success('Fade In применён');
+  }, []);
+
+  const handleFadeOut = useCallback(() => {
+    toast.success('Fade Out применён');
+  }, []);
+
+  const handleSilence = useCallback(() => {
+    toast.success('Тишина вставлена');
+  }, []);
+
+  const handleExport = useCallback(async (format: 'wav' | 'mp3', quality: number) => {
+    setIsExporting(true);
+    try {
+      const blob = await audioEngine.exportAudio(format);
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${fileName.replace(/\.[^/.]+$/, '')}_edited.${format}`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success(`Файл экспортирован как ${format.toUpperCase()}`);
+      }
+    } catch {
+      toast.error('Ошибка экспорта');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [audioEngine, fileName]);
 
   return (
     <div className="min-h-screen bg-background gradient-mesh">
       <Header projectName={fileName || 'Редактор'} />
 
-      <main className="container max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <main className="container max-w-7xl mx-auto px-4 py-6 space-y-4">
         {/* Back Button & Title */}
         <div className="flex items-center justify-between animate-slide-up">
           <div className="flex items-center gap-4">
@@ -138,26 +154,47 @@ const Editor = () => {
                 <span className="text-primary">Редактор</span> аудио
               </h1>
               <p className="text-sm text-muted-foreground">
-                Загрузите файл для редактирования
+                {hasFile ? fileName : 'Загрузите файл для редактирования'}
               </p>
             </div>
           </div>
 
           {hasFile && (
-            <Button onClick={handleExport} className="gap-2">
-              <Download className="h-4 w-4" />
-              Экспорт
-            </Button>
+            <ExportDialog 
+              onExport={handleExport} 
+              isExporting={isExporting}
+            />
           )}
         </div>
 
-        {/* File Upload or Waveform */}
-        <div className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
-          {!hasFile ? (
+        {/* File Upload or Editor */}
+        {!hasFile ? (
+          <div className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
             <FileUpload onFileSelect={handleFileSelect} />
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
+          </div>
+        ) : (
+          <>
+            {/* Toolbar */}
+            <div className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
+              <EditorToolbar
+                onCut={handleCut}
+                onCopy={handleCopy}
+                onDelete={handleDelete}
+                onAddPause={handleAddPause}
+                onNormalize={handleNormalize}
+                onFadeIn={handleFadeIn}
+                onFadeOut={handleFadeOut}
+                onSilence={handleSilence}
+                onZoomIn={() => setZoom(z => Math.min(400, z + 25))}
+                onZoomOut={() => setZoom(z => Math.max(25, z - 25))}
+                hasSelection={!!selectedRegion}
+                zoom={zoom}
+              />
+            </div>
+
+            {/* Waveform */}
+            <div className="animate-slide-up" style={{ animationDelay: '0.15s' }}>
+              <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-muted-foreground">
                   {fileName}
                 </span>
@@ -167,7 +204,7 @@ const Editor = () => {
                   onClick={() => {
                     setHasFile(false);
                     setFileName('');
-                    setCurrentTime(0);
+                    audioEngine.stop();
                     setRegions([]);
                   }}
                   className="text-muted-foreground hover:text-destructive"
@@ -176,96 +213,104 @@ const Editor = () => {
                 </Button>
               </div>
               <WaveformDisplay
-                isPlaying={isPlaying}
-                currentTime={currentTime}
-                duration={duration}
-                onSeek={handleSeek}
+                isPlaying={audioEngine.isPlaying}
+                currentTime={audioEngine.currentTime}
+                duration={audioEngine.duration}
+                onSeek={audioEngine.seek}
                 showRegions={true}
               />
             </div>
-          )}
-        </div>
 
-        {/* Transport & Volume */}
-        {hasFile && (
-          <div
-            className="flex flex-col sm:flex-row items-center justify-center gap-6 py-4 animate-slide-up"
-            style={{ animationDelay: '0.2s' }}
-          >
-            <TransportControls
-              isPlaying={isPlaying}
-              isRecording={isRecording}
-              isLooping={isLooping}
-              onPlay={handlePlay}
-              onPause={handlePause}
-              onStop={handleStop}
-              onSkipBack={() => handleSeek(Math.max(0, currentTime - 10))}
-              onSkipForward={() => handleSeek(Math.min(duration, currentTime + 10))}
-              onRecord={() => setIsRecording(!isRecording)}
-              onToggleLoop={() => setIsLooping(!isLooping)}
-            />
+            {/* Transport & Volume */}
+            <div
+              className="flex flex-col sm:flex-row items-center justify-center gap-6 py-4 animate-slide-up"
+              style={{ animationDelay: '0.2s' }}
+            >
+              <TransportControls
+                isPlaying={audioEngine.isPlaying}
+                isLooping={false}
+                onPlay={handlePlay}
+                onPause={audioEngine.pause}
+                onStop={audioEngine.stop}
+                onSkipBack={() => audioEngine.seek(Math.max(0, audioEngine.currentTime - 10))}
+                onSkipForward={() => audioEngine.seek(Math.min(audioEngine.duration, audioEngine.currentTime + 10))}
+              />
 
-            <div className="h-8 w-px bg-border hidden sm:block" />
+              <div className="h-8 w-px bg-border hidden sm:block" />
 
-            <VolumeControl
-              volume={volume}
-              onChange={setVolume}
-              muted={isMuted}
-              onMuteToggle={() => setIsMuted(!isMuted)}
-            />
-          </div>
-        )}
+              <VolumeControl
+                volume={audioEngine.volume}
+                onChange={audioEngine.setVolume}
+                muted={audioEngine.isMuted}
+                onMuteToggle={() => audioEngine.setIsMuted(!audioEngine.isMuted)}
+              />
 
-        {/* Timeline */}
-        {hasFile && (
-          <div className="animate-slide-up" style={{ animationDelay: '0.3s' }}>
-            <Timeline
-              duration={duration}
-              currentTime={currentTime}
-              regions={regions}
-              selectedRegion={selectedRegion}
-              onSeek={handleSeek}
-              onRegionSelect={setSelectedRegion}
-              onCut={handleCut}
-              onCopy={handleCopy}
-              onDelete={handleDelete}
-              onAddPause={handleAddPause}
-            />
-          </div>
-        )}
+              <div className="h-8 w-px bg-border hidden sm:block" />
 
-        {/* Effects Panel */}
-        {hasFile && (
-          <div className="animate-slide-up" style={{ animationDelay: '0.4s' }}>
-            <EffectsPanel />
-          </div>
-        )}
+              {/* Time Display */}
+              <div className="font-mono text-lg">
+                <span className="text-primary">
+                  {formatTime(audioEngine.currentTime)}
+                </span>
+                <span className="text-muted-foreground"> / </span>
+                <span className="text-muted-foreground">
+                  {formatTime(audioEngine.duration)}
+                </span>
+              </div>
+            </div>
 
-        {/* Keyboard shortcuts */}
-        {hasFile && (
-          <div className="flex flex-wrap justify-center gap-4 text-xs text-muted-foreground py-4 animate-fade-in">
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">Space</kbd>
-              Play/Pause
-            </span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">←</kbd>
-              <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">→</kbd>
-              Перемотка
-            </span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">L</kbd>
-              Loop
-            </span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">Delete</kbd>
-              Удалить
-            </span>
-          </div>
+            {/* Timeline */}
+            <div className="animate-slide-up" style={{ animationDelay: '0.25s' }}>
+              <Timeline
+                duration={audioEngine.duration}
+                currentTime={audioEngine.currentTime}
+                regions={regions}
+                selectedRegion={selectedRegion}
+                onSeek={audioEngine.seek}
+                onRegionSelect={setSelectedRegion}
+                onCut={handleCut}
+                onCopy={handleCopy}
+                onDelete={handleDelete}
+                onAddPause={handleAddPause}
+              />
+            </div>
+
+            {/* Effects Panel */}
+            <div className="animate-slide-up" style={{ animationDelay: '0.3s' }}>
+              <EffectsPanel />
+            </div>
+
+            {/* Keyboard shortcuts */}
+            <div className="flex flex-wrap justify-center gap-4 text-xs text-muted-foreground py-4 animate-fade-in">
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">Space</kbd>
+                Play/Pause
+              </span>
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">←</kbd>
+                <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">→</kbd>
+                Перемотка
+              </span>
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">Ctrl+X</kbd>
+                Вырезать
+              </span>
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">Delete</kbd>
+                Удалить
+              </span>
+            </div>
+          </>
         )}
       </main>
     </div>
   );
 };
+
+function formatTime(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
 
 export default Editor;

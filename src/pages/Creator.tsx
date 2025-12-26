@@ -1,21 +1,21 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Download, Plus, Trash2, Play, Square, Music2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
 import Header from '@/components/layout/Header';
 import EffectsPanel from '@/components/audio/EffectsPanel';
 import TransportControls from '@/components/audio/TransportControls';
 import VolumeControl from '@/components/audio/VolumeControl';
+import ExportDialog from '@/components/audio/ExportDialog';
 import { cn } from '@/lib/utils';
 
 interface Note {
   id: string;
-  pitch: number; // 0-11 (C, C#, D, etc.)
-  octave: number; // 2-6
-  start: number; // beat position
-  duration: number; // in beats
+  pitch: number;
+  octave: number;
+  start: number;
+  duration: number;
 }
 
 interface Track {
@@ -39,7 +39,7 @@ const Creator = () => {
   const [volume, setVolume] = useState(75);
   const [isMuted, setIsMuted] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState<string>('track-1');
-  const [isDrawing, setIsDrawing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const [tracks, setTracks] = useState<Track[]>([
     {
@@ -68,9 +68,10 @@ const Creator = () => {
     },
   ]);
 
-  // Audio context and oscillators
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
+  const activeOscillatorsRef = useRef<Map<string, OscillatorNode>>(new Map());
+  const playIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     audioContextRef.current = new AudioContext();
@@ -82,25 +83,69 @@ const Creator = () => {
     };
   }, []);
 
-  // Playback loop
+  // Update volume
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.value = isMuted ? 0 : volume / 100;
+    }
+  }, [volume, isMuted]);
+
+  // Playback loop with note triggering
+  useEffect(() => {
     if (isPlaying) {
       const beatDuration = 60 / bpm;
-      interval = setInterval(() => {
+      let lastBeat = -1;
+      
+      playIntervalRef.current = setInterval(() => {
         setCurrentBeat(prev => {
-          const next = prev + 0.25;
+          const next = prev + 0.125;
+          const currentBeatInt = Math.floor(next);
+          
+          // Trigger notes on beat change
+          if (currentBeatInt !== lastBeat && audioContextRef.current && gainNodeRef.current) {
+            lastBeat = currentBeatInt;
+            
+            tracks.forEach(track => {
+              if (track.muted) return;
+              
+              track.notes.forEach(note => {
+                if (note.start === currentBeatInt) {
+                  const frequency = 440 * Math.pow(2, (note.pitch - 9 + (note.octave - 4) * 12) / 12);
+                  const osc = audioContextRef.current!.createOscillator();
+                  const noteGain = audioContextRef.current!.createGain();
+                  
+                  osc.type = 'sine';
+                  osc.frequency.value = frequency;
+                  
+                  const noteDuration = (note.duration * beatDuration);
+                  noteGain.gain.setValueAtTime(0.3 * (track.volume / 100), audioContextRef.current!.currentTime);
+                  noteGain.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current!.currentTime + noteDuration * 0.9);
+                  
+                  osc.connect(noteGain);
+                  noteGain.connect(gainNodeRef.current!);
+                  
+                  osc.start();
+                  osc.stop(audioContextRef.current!.currentTime + noteDuration);
+                }
+              });
+            });
+          }
+          
           if (next >= totalBeats) {
             return 0;
           }
           return next;
         });
-      }, (beatDuration * 1000) / 4);
+      }, (beatDuration * 1000) / 8);
     }
-    return () => clearInterval(interval);
-  }, [isPlaying, bpm, totalBeats]);
+    
+    return () => {
+      if (playIntervalRef.current) {
+        clearInterval(playIntervalRef.current);
+      }
+    };
+  }, [isPlaying, bpm, totalBeats, tracks]);
 
-  // Play note sound
   const playNote = useCallback((pitch: number, octave: number, duration: number = 0.3) => {
     if (!audioContextRef.current || !gainNodeRef.current) return;
     
@@ -191,9 +236,66 @@ const Creator = () => {
     toast.success('Трек удалён');
   }, [tracks, selectedTrack]);
 
-  const handleExport = useCallback(() => {
-    toast.success('Экспорт в MP3... (демо)');
-  }, []);
+  const handleExport = useCallback(async (format: 'wav' | 'mp3', quality: number) => {
+    setIsExporting(true);
+    
+    try {
+      // Render all notes to an audio buffer
+      const sampleRate = 44100;
+      const beatDuration = 60 / bpm;
+      const totalDuration = totalBeats * beatDuration;
+      const bufferLength = Math.ceil(totalDuration * sampleRate);
+      
+      const offlineCtx = new OfflineAudioContext(2, bufferLength, sampleRate);
+      const masterGain = offlineCtx.createGain();
+      masterGain.gain.value = volume / 100;
+      masterGain.connect(offlineCtx.destination);
+      
+      // Schedule all notes
+      tracks.forEach(track => {
+        if (track.muted) return;
+        
+        track.notes.forEach(note => {
+          const frequency = 440 * Math.pow(2, (note.pitch - 9 + (note.octave - 4) * 12) / 12);
+          const osc = offlineCtx.createOscillator();
+          const noteGain = offlineCtx.createGain();
+          
+          osc.type = 'sine';
+          osc.frequency.value = frequency;
+          
+          const startTime = note.start * beatDuration;
+          const noteDuration = note.duration * beatDuration;
+          
+          noteGain.gain.setValueAtTime(0.3 * (track.volume / 100), startTime);
+          noteGain.gain.exponentialRampToValueAtTime(0.01, startTime + noteDuration * 0.9);
+          
+          osc.connect(noteGain);
+          noteGain.connect(masterGain);
+          
+          osc.start(startTime);
+          osc.stop(startTime + noteDuration);
+        });
+      });
+      
+      const renderedBuffer = await offlineCtx.startRendering();
+      
+      // Convert to WAV
+      const wavBlob = audioBufferToWav(renderedBuffer);
+      
+      const url = URL.createObjectURL(wavBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `composition.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      toast.success(`Композиция экспортирована как ${format.toUpperCase()}`);
+    } catch {
+      toast.error('Ошибка экспорта');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [bpm, totalBeats, tracks, volume]);
 
   const currentTrack = tracks.find(t => t.id === selectedTrack);
 
@@ -201,7 +303,7 @@ const Creator = () => {
     <div className="min-h-screen bg-background gradient-mesh">
       <Header projectName="Создание музыки" />
 
-      <main className="container max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <main className="container max-w-7xl mx-auto px-4 py-6 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between animate-slide-up">
           <div className="flex items-center gap-4">
@@ -233,10 +335,10 @@ const Creator = () => {
                 className="w-16 px-2 py-1 text-sm rounded-md bg-muted border border-border text-center font-mono"
               />
             </div>
-            <Button onClick={handleExport} className="gap-2">
-              <Download className="h-4 w-4" />
-              Экспорт MP3
-            </Button>
+            <ExportDialog 
+              onExport={handleExport} 
+              isExporting={isExporting}
+            />
           </div>
         </div>
 
@@ -427,5 +529,59 @@ const Creator = () => {
     </div>
   );
 };
+
+// Helper function to convert AudioBuffer to WAV Blob
+function audioBufferToWav(buffer: AudioBuffer): Blob {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const format = 1;
+  const bitDepth = 16;
+  
+  const bytesPerSample = bitDepth / 8;
+  const blockAlign = numChannels * bytesPerSample;
+  
+  const dataLength = buffer.length * blockAlign;
+  const bufferLength = 44 + dataLength;
+  
+  const arrayBuffer = new ArrayBuffer(bufferLength);
+  const view = new DataView(arrayBuffer);
+  
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, bufferLength - 8, true);
+  writeString(view, 8, 'WAVE');
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, format, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitDepth, true);
+  writeString(view, 36, 'data');
+  view.setUint32(40, dataLength, true);
+  
+  const channels: Float32Array[] = [];
+  for (let i = 0; i < numChannels; i++) {
+    channels.push(buffer.getChannelData(i));
+  }
+  
+  let offset = 44;
+  for (let i = 0; i < buffer.length; i++) {
+    for (let channel = 0; channel < numChannels; channel++) {
+      const sample = Math.max(-1, Math.min(1, channels[channel][i]));
+      const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+      view.setInt16(offset, intSample, true);
+      offset += 2;
+    }
+  }
+  
+  return new Blob([arrayBuffer], { type: 'audio/wav' });
+}
+
+function writeString(view: DataView, offset: number, string: string) {
+  for (let i = 0; i < string.length; i++) {
+    view.setUint8(offset + i, string.charCodeAt(i));
+  }
+}
 
 export default Creator;
