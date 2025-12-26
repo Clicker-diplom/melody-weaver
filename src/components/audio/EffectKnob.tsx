@@ -48,6 +48,7 @@ const EffectKnob = ({
   const rotation = (percentage / 100) * 270 - 135;
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (disabled) return;
     e.preventDefault();
     setIsDragging(true);
     startY.current = e.clientY;
@@ -69,15 +70,20 @@ const EffectKnob = ({
 
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
-  }, [value, min, max, onChange]);
+  }, [value, min, max, onChange, disabled]);
 
   return (
-    <div className={cn('flex flex-col items-center gap-2', className)}>
+    <div className={cn(
+      'flex flex-col items-center gap-2',
+      disabled && 'opacity-50 pointer-events-none',
+      className
+    )}>
       {/* Knob */}
       <div
         ref={knobRef}
         className={cn(
-          'relative rounded-full cursor-grab active:cursor-grabbing',
+          'relative rounded-full',
+          disabled ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing',
           'bg-gradient-to-b from-muted/50 to-muted/80',
           'border border-border/50',
           sizeClasses[size],
@@ -120,7 +126,7 @@ const EffectKnob = ({
             strokeDasharray="198"
             strokeDashoffset={198 - (percentage / 100) * 132}
             style={{
-              filter: `drop-shadow(0 0 6px hsl(var(--glow-${color}) / 0.6))`,
+              filter: disabled ? 'none' : `drop-shadow(0 0 6px hsl(var(--glow-${color}) / 0.6))`,
             }}
           />
         </svg>
