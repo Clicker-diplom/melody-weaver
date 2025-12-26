@@ -19,10 +19,13 @@ interface Note {
   duration: number;
 }
 
+type SynthType = 'lead' | 'bass' | 'pad' | 'pluck' | 'keys';
+
 interface Track {
   id: string;
   name: string;
   color: string;
+  synth: SynthType;
   notes: Note[];
   volume: number;
   muted: boolean;
@@ -30,6 +33,14 @@ interface Track {
 
 const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const octaves = [5, 4, 3, 2];
+
+const synthNames: Record<SynthType, string> = {
+  lead: 'Lead',
+  bass: 'Бас',
+  pad: 'Pad',
+  pluck: 'Pluck',
+  keys: 'Keys'
+};
 
 const Creator = () => {
   const navigate = useNavigate();
@@ -53,6 +64,7 @@ const Creator = () => {
       id: 'track-1',
       name: 'Мелодия',
       color: 'hsl(187, 100%, 50%)',
+      synth: 'lead',
       notes: [
         { id: 'n1', pitch: 0, octave: 4, start: 0, duration: 2 },
         { id: 'n2', pitch: 4, octave: 4, start: 2, duration: 2 },
@@ -66,6 +78,7 @@ const Creator = () => {
       id: 'track-2',
       name: 'Бас',
       color: 'hsl(328, 100%, 50%)',
+      synth: 'bass',
       notes: [
         { id: 'b1', pitch: 0, octave: 2, start: 0, duration: 4 },
         { id: 'b2', pitch: 5, octave: 2, start: 4, duration: 4 },
@@ -223,6 +236,147 @@ const Creator = () => {
     }
   }, [volume, isMuted]);
 
+  // Create synth voice based on type
+  const createSynthVoice = useCallback((
+    ctx: AudioContext,
+    synthType: SynthType,
+    frequency: number,
+    startTime: number,
+    duration: number,
+    velocity: number = 0.3
+  ): { connect: (node: AudioNode) => void; start: () => void; stop: () => void } => {
+    const voices: OscillatorNode[] = [];
+    const outputGain = ctx.createGain();
+    
+    switch (synthType) {
+      case 'lead': {
+        // Lead: detuned saws with filter
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 3000;
+        filter.Q.value = 2;
+        
+        for (let i = 0; i < 2; i++) {
+          const osc = ctx.createOscillator();
+          osc.type = 'sawtooth';
+          osc.frequency.value = frequency * (1 + (i - 0.5) * 0.01);
+          const g = ctx.createGain();
+          g.gain.value = velocity * 0.4;
+          osc.connect(g);
+          g.connect(filter);
+          voices.push(osc);
+        }
+        filter.connect(outputGain);
+        
+        outputGain.gain.setValueAtTime(0.001, startTime);
+        outputGain.gain.exponentialRampToValueAtTime(1, startTime + 0.02);
+        outputGain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        break;
+      }
+      
+      case 'bass': {
+        // Bass: sub + filtered saw
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 400;
+        filter.Q.value = 3;
+        
+        const sub = ctx.createOscillator();
+        sub.type = 'sine';
+        sub.frequency.value = frequency;
+        const subGain = ctx.createGain();
+        subGain.gain.value = velocity * 0.6;
+        sub.connect(subGain);
+        subGain.connect(outputGain);
+        voices.push(sub);
+        
+        const saw = ctx.createOscillator();
+        saw.type = 'sawtooth';
+        saw.frequency.value = frequency;
+        const sawGain = ctx.createGain();
+        sawGain.gain.value = velocity * 0.3;
+        saw.connect(filter);
+        filter.connect(sawGain);
+        sawGain.connect(outputGain);
+        voices.push(saw);
+        
+        outputGain.gain.setValueAtTime(0.001, startTime);
+        outputGain.gain.exponentialRampToValueAtTime(1, startTime + 0.01);
+        outputGain.gain.setValueAtTime(1, startTime + duration * 0.8);
+        outputGain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        break;
+      }
+      
+      case 'pad': {
+        for (let i = 0; i < 4; i++) {
+          const osc = ctx.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.value = frequency * (1 + (i - 1.5) * 0.005);
+          const g = ctx.createGain();
+          g.gain.value = velocity * 0.2;
+          osc.connect(g);
+          g.connect(outputGain);
+          voices.push(osc);
+        }
+        
+        outputGain.gain.setValueAtTime(0.001, startTime);
+        outputGain.gain.exponentialRampToValueAtTime(1, startTime + 0.15);
+        outputGain.gain.setValueAtTime(1, startTime + duration * 0.7);
+        outputGain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        break;
+      }
+      
+      case 'pluck': {
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = frequency * 2;
+        filter.Q.value = 5;
+        
+        const osc = ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.value = frequency;
+        const g = ctx.createGain();
+        g.gain.value = velocity * 0.5;
+        osc.connect(filter);
+        filter.connect(g);
+        g.connect(outputGain);
+        voices.push(osc);
+        
+        outputGain.gain.setValueAtTime(1, startTime);
+        outputGain.gain.exponentialRampToValueAtTime(0.001, startTime + Math.min(duration, 0.5));
+        break;
+      }
+      
+      case 'keys': {
+        const harmonics = [1, 2, 3, 4];
+        const amps = [0.5, 0.3, 0.15, 0.05];
+        
+        harmonics.forEach((h, i) => {
+          const osc = ctx.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.value = frequency * h;
+          const g = ctx.createGain();
+          g.gain.value = velocity * amps[i];
+          osc.connect(g);
+          g.connect(outputGain);
+          voices.push(osc);
+        });
+        
+        outputGain.gain.setValueAtTime(0.001, startTime);
+        outputGain.gain.exponentialRampToValueAtTime(1, startTime + 0.01);
+        outputGain.gain.setValueAtTime(0.8, startTime + duration * 0.9);
+        outputGain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        break;
+      }
+    }
+    
+    return {
+      connect: (node: AudioNode) => outputGain.connect(node),
+      start: () => voices.forEach(v => v.start(startTime)),
+      stop: () => voices.forEach(v => v.stop(startTime + duration))
+    };
+  }, []);
+
   // Playback loop with note triggering
   useEffect(() => {
     if (isPlaying) {
@@ -234,7 +388,6 @@ const Creator = () => {
           const next = prev + 0.125;
           const currentBeatInt = Math.floor(next);
           
-          // Trigger notes on beat change
           if (currentBeatInt !== lastBeat && audioContextRef.current && masterGainRef.current) {
             lastBeat = currentBeatInt;
             
@@ -244,21 +397,20 @@ const Creator = () => {
               track.notes.forEach(note => {
                 if (note.start === currentBeatInt) {
                   const frequency = 440 * Math.pow(2, (note.pitch - 9 + (note.octave - 4) * 12) / 12);
-                  const osc = audioContextRef.current!.createOscillator();
-                  const noteGain = audioContextRef.current!.createGain();
+                  const noteDuration = note.duration * beatDuration;
                   
-                  osc.type = 'sine';
-                  osc.frequency.value = frequency;
+                  const voice = createSynthVoice(
+                    audioContextRef.current!,
+                    track.synth,
+                    frequency,
+                    audioContextRef.current!.currentTime,
+                    noteDuration,
+                    0.3 * (track.volume / 100)
+                  );
                   
-                  const noteDuration = (note.duration * beatDuration);
-                  noteGain.gain.setValueAtTime(0.3 * (track.volume / 100), audioContextRef.current!.currentTime);
-                  noteGain.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current!.currentTime + noteDuration * 0.9);
-                  
-                  osc.connect(noteGain);
-                  noteGain.connect(masterGainRef.current!);
-                  
-                  osc.start();
-                  osc.stop(audioContextRef.current!.currentTime + noteDuration);
+                  voice.connect(masterGainRef.current!);
+                  voice.start();
+                  voice.stop();
                 }
               });
             });
@@ -277,9 +429,9 @@ const Creator = () => {
         clearInterval(playIntervalRef.current);
       }
     };
-  }, [isPlaying, bpm, totalBeats, tracks]);
+  }, [isPlaying, bpm, totalBeats, tracks, createSynthVoice]);
 
-  const playNote = useCallback((pitch: number, octave: number, duration: number = 0.3) => {
+  const playNote = useCallback((pitch: number, octave: number, duration: number = 0.3, synthType: SynthType = 'lead') => {
     if (!audioContextRef.current || !masterGainRef.current) return;
     
     if (audioContextRef.current.state === 'suspended') {
@@ -287,21 +439,19 @@ const Creator = () => {
     }
     
     const frequency = 440 * Math.pow(2, (pitch - 9 + (octave - 4) * 12) / 12);
-    const osc = audioContextRef.current.createOscillator();
-    const noteGain = audioContextRef.current.createGain();
+    const voice = createSynthVoice(
+      audioContextRef.current,
+      synthType,
+      frequency,
+      audioContextRef.current.currentTime,
+      duration,
+      0.3
+    );
     
-    osc.type = 'sine';
-    osc.frequency.value = frequency;
-    
-    noteGain.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
-    noteGain.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + duration);
-    
-    osc.connect(noteGain);
-    noteGain.connect(masterGainRef.current);
-    
-    osc.start();
-    osc.stop(audioContextRef.current.currentTime + duration);
-  }, []);
+    voice.connect(masterGainRef.current);
+    voice.start();
+    voice.stop();
+  }, [createSynthVoice]);
 
   const handlePlay = useCallback(() => {
     if (audioContextRef.current?.state === 'suspended') {
@@ -329,14 +479,18 @@ const Creator = () => {
       duration: 1,
     };
     
-    setTracks(prev => prev.map(track => 
-      track.id === trackId
-        ? { ...track, notes: [...track.notes, newNote] }
-        : track
+    const track = tracks.find(t => t.id === trackId);
+    
+    setTracks(prev => prev.map(t => 
+      t.id === trackId
+        ? { ...t, notes: [...t.notes, newNote] }
+        : t
     ));
     
-    playNote(pitch, octave);
-  }, [playNote]);
+    if (track) {
+      playNote(pitch, octave, 0.3, track.synth);
+    }
+  }, [playNote, tracks]);
 
   const removeNote = useCallback((trackId: string, noteId: string) => {
     setTracks(prev => prev.map(track =>
@@ -348,10 +502,12 @@ const Creator = () => {
 
   const addTrack = useCallback(() => {
     const colors = ['hsl(25, 100%, 60%)', 'hsl(142, 70%, 50%)', 'hsl(270, 70%, 60%)'];
+    const synths: SynthType[] = ['pad', 'pluck', 'keys'];
     const newTrack: Track = {
       id: `track-${Date.now()}`,
       name: `Трек ${tracks.length + 1}`,
       color: colors[tracks.length % colors.length],
+      synth: synths[tracks.length % synths.length],
       notes: [],
       volume: 100,
       muted: false,
@@ -403,20 +559,39 @@ const Creator = () => {
       filter.connect(distortion);
       distortion.connect(offlineCtx.destination);
       
-      // Schedule all notes
+      // Schedule all notes with proper synth types
       tracks.forEach(track => {
         if (track.muted) return;
         
         track.notes.forEach(note => {
           const frequency = 440 * Math.pow(2, (note.pitch - 9 + (note.octave - 4) * 12) / 12);
+          const startTime = note.start * beatDuration;
+          const noteDuration = note.duration * beatDuration;
+          
+          // Simplified synth for export (full synth too complex for offline)
           const osc = offlineCtx.createOscillator();
           const noteGain = offlineCtx.createGain();
           
-          osc.type = 'sine';
-          osc.frequency.value = frequency;
+          // Set oscillator type based on track synth
+          switch (track.synth) {
+            case 'lead':
+              osc.type = 'sawtooth';
+              break;
+            case 'bass':
+              osc.type = 'sine';
+              break;
+            case 'pad':
+              osc.type = 'sine';
+              break;
+            case 'pluck':
+              osc.type = 'triangle';
+              break;
+            case 'keys':
+              osc.type = 'sine';
+              break;
+          }
           
-          const startTime = note.start * beatDuration;
-          const noteDuration = note.duration * beatDuration;
+          osc.frequency.value = frequency;
           
           noteGain.gain.setValueAtTime(0.3 * (track.volume / 100), startTime);
           noteGain.gain.exponentialRampToValueAtTime(0.01, startTime + noteDuration * 0.9);
@@ -533,29 +708,32 @@ const Creator = () => {
               key={track.id}
               onClick={() => setSelectedTrack(track.id)}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200',
-                'border whitespace-nowrap min-w-[120px]',
+                'flex flex-col items-start gap-0.5 px-4 py-2 rounded-lg transition-all duration-200',
+                'border whitespace-nowrap min-w-[140px]',
                 selectedTrack === track.id
                   ? 'border-primary bg-primary/20'
                   : 'bg-muted/30 border-border/50 hover:border-border'
               )}
             >
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: track.color }}
-              />
-              <span className="text-sm font-medium">{track.name}</span>
-              {tracks.length > 1 && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteTrack(track.id);
-                  }}
-                  className="ml-auto text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              )}
+              <div className="flex items-center gap-2 w-full">
+                <div
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: track.color }}
+                />
+                <span className="text-sm font-medium">{track.name}</span>
+                {tracks.length > 1 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteTrack(track.id);
+                    }}
+                    className="ml-auto text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+              <span className="text-xs text-muted-foreground ml-5">{synthNames[track.synth]}</span>
             </button>
           ))}
           <Button variant="glass" size="sm" onClick={addTrack} className="gap-1">
