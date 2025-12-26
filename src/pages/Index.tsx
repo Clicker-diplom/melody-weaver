@@ -1,215 +1,159 @@
-import { useState, useEffect, useCallback } from 'react';
-import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
+import { Music, Wand2, FileAudio, Sparkles, ArrowRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import Header from '@/components/layout/Header';
-import WaveformDisplay from '@/components/audio/WaveformDisplay';
-import TransportControls from '@/components/audio/TransportControls';
-import VolumeControl from '@/components/audio/VolumeControl';
-import EffectsPanel from '@/components/audio/EffectsPanel';
-import Timeline from '@/components/audio/Timeline';
-import FileUpload from '@/components/audio/FileUpload';
 import { cn } from '@/lib/utils';
 
 const Index = () => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isLooping, setIsLooping] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration] = useState(180); // 3 minutes demo
-  const [volume, setVolume] = useState(75);
-  const [isMuted, setIsMuted] = useState(false);
-  // Start with demo file loaded for showcase
-  const [hasFile, setHasFile] = useState(true);
-  // hasFile is now defined above
-  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
-
-  // Demo timeline regions
-  const [regions] = useState([
-    { id: '1', start: 10, end: 35, color: 'hsl(187, 100%, 50%)', label: 'Вступление' },
-    { id: '2', start: 35, end: 80, color: 'hsl(328, 100%, 50%)', label: 'Куплет 1' },
-    { id: '3', start: 80, end: 110, color: 'hsl(25, 100%, 60%)', label: 'Припев' },
-    { id: '4', start: 110, end: 155, color: 'hsl(328, 100%, 50%)', label: 'Куплет 2' },
-    { id: '5', start: 155, end: 180, color: 'hsl(142, 70%, 50%)', label: 'Финал' },
-  ]);
-
-  // Simulate playback
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isPlaying && hasFile) {
-      interval = setInterval(() => {
-        setCurrentTime(prev => {
-          if (prev >= duration) {
-            if (isLooping) return 0;
-            setIsPlaying(false);
-            return duration;
-          }
-          return prev + 0.1;
-        });
-      }, 100);
-    }
-    return () => clearInterval(interval);
-  }, [isPlaying, duration, isLooping, hasFile]);
-
-  const handlePlay = useCallback(() => {
-    if (!hasFile) {
-      toast.error('Сначала загрузите аудиофайл');
-      return;
-    }
-    setIsPlaying(true);
-    toast.success('Воспроизведение');
-  }, [hasFile]);
-
-  const handlePause = useCallback(() => {
-    setIsPlaying(false);
-    toast.info('Пауза');
-  }, []);
-
-  const handleStop = useCallback(() => {
-    setIsPlaying(false);
-    setCurrentTime(0);
-  }, []);
-
-  const handleSeek = useCallback((time: number) => {
-    setCurrentTime(Math.max(0, Math.min(time, duration)));
-  }, [duration]);
-
-  const handleFileSelect = useCallback((file: File) => {
-    setHasFile(true);
-    setCurrentTime(0);
-    toast.success(`Загружен: ${file.name}`);
-  }, []);
-
-  const handleCut = useCallback(() => {
-    if (selectedRegion) {
-      toast.success('Регион вырезан');
-    }
-  }, [selectedRegion]);
-
-  const handleCopy = useCallback(() => {
-    if (selectedRegion) {
-      toast.success('Регион скопирован');
-    }
-  }, [selectedRegion]);
-
-  const handleDelete = useCallback(() => {
-    if (selectedRegion) {
-      toast.success('Регион удалён');
-      setSelectedRegion(null);
-    }
-  }, [selectedRegion]);
-
-  const handleAddPause = useCallback(() => {
-    toast.success('Пауза добавлена на текущей позиции');
-  }, []);
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-background gradient-mesh">
       <Header />
 
-      <main className="container max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {/* Title Section */}
-        <div className="text-center py-6 animate-slide-up">
-          <h1 className="text-4xl md:text-5xl font-bold mb-3">
+      <main className="container max-w-6xl mx-auto px-4 py-12">
+        {/* Hero Section */}
+        <div className="text-center py-12 animate-slide-up">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass mb-6">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span className="text-sm text-muted-foreground">Профессиональная обработка аудио</span>
+          </div>
+          
+          <h1 className="text-5xl md:text-7xl font-bold mb-6">
             <span className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
               SoundForge
             </span>
           </h1>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Профессиональная обработка аудио с эффектами, редактированием и визуализацией
+          
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-4">
+            Создавайте и редактируйте музыку с профессиональными эффектами, 
+            визуализацией и экспортом
           </p>
         </div>
 
-        {/* File Upload or Waveform */}
-        <div className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
-          {!hasFile ? (
-            <FileUpload onFileSelect={handleFileSelect} />
-          ) : (
-            <WaveformDisplay
-              isPlaying={isPlaying}
-              currentTime={currentTime}
-              duration={duration}
-              onSeek={handleSeek}
-              showRegions={true}
-            />
-          )}
+        {/* Mode Selection Cards */}
+        <div className="grid md:grid-cols-2 gap-8 mt-8 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+          {/* Editor Card */}
+          <div
+            onClick={() => navigate('/editor')}
+            className={cn(
+              'group relative p-8 rounded-3xl cursor-pointer transition-all duration-500',
+              'glass hover:bg-card/80',
+              'border border-border/50 hover:border-primary/50',
+              'hover:glow-cyan hover:scale-[1.02]'
+            )}
+          >
+            {/* Background gradient */}
+            <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            
+            <div className="relative z-10">
+              {/* Icon */}
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/30 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                <FileAudio className="h-10 w-10 text-primary" />
+              </div>
+
+              {/* Title */}
+              <h2 className="text-3xl font-bold mb-4 group-hover:text-primary transition-colors">
+                Редактор
+              </h2>
+
+              {/* Description */}
+              <p className="text-muted-foreground mb-6 leading-relaxed">
+                Загрузите свой аудиофайл и редактируйте его: 
+                добавляйте эффекты, обрезайте, изменяйте громкость, 
+                применяйте фильтры и экспортируйте результат.
+              </p>
+
+              {/* Features */}
+              <div className="flex flex-wrap gap-2 mb-6">
+                {['WAV', 'MP3', 'FLAC', 'OGG'].map(format => (
+                  <span key={format} className="px-3 py-1 text-xs font-mono rounded-full bg-primary/10 text-primary border border-primary/20">
+                    {format}
+                  </span>
+                ))}
+              </div>
+
+              {/* Action */}
+              <div className="flex items-center gap-2 text-primary font-medium">
+                <span>Открыть редактор</span>
+                <ArrowRight className="h-4 w-4 group-hover:translate-x-2 transition-transform" />
+              </div>
+            </div>
+          </div>
+
+          {/* Creator Card */}
+          <div
+            onClick={() => navigate('/creator')}
+            className={cn(
+              'group relative p-8 rounded-3xl cursor-pointer transition-all duration-500',
+              'glass hover:bg-card/80',
+              'border border-border/50 hover:border-secondary/50',
+              'hover:glow-magenta hover:scale-[1.02]'
+            )}
+          >
+            {/* Background gradient */}
+            <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-secondary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            
+            <div className="relative z-10">
+              {/* Icon */}
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-secondary/20 to-secondary/5 border border-secondary/30 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                <Wand2 className="h-10 w-10 text-secondary" />
+              </div>
+
+              {/* Title */}
+              <h2 className="text-3xl font-bold mb-4 group-hover:text-secondary transition-colors">
+                Создание с нуля
+              </h2>
+
+              {/* Description */}
+              <p className="text-muted-foreground mb-6 leading-relaxed">
+                Создавайте музыку с нуля используя синтезаторы, 
+                секвенсор, эффекты и экспортируйте готовые треки 
+                в популярных форматах.
+              </p>
+
+              {/* Features */}
+              <div className="flex flex-wrap gap-2 mb-6">
+                {['Синтез', 'Секвенсор', 'MIDI', 'Экспорт'].map(feature => (
+                  <span key={feature} className="px-3 py-1 text-xs font-mono rounded-full bg-secondary/10 text-secondary border border-secondary/20">
+                    {feature}
+                  </span>
+                ))}
+              </div>
+
+              {/* Action */}
+              <div className="flex items-center gap-2 text-secondary font-medium">
+                <span>Начать создание</span>
+                <ArrowRight className="h-4 w-4 group-hover:translate-x-2 transition-transform" />
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Transport & Volume */}
-        {hasFile && (
-          <div
-            className="flex flex-col sm:flex-row items-center justify-center gap-6 py-4 animate-slide-up"
-            style={{ animationDelay: '0.2s' }}
-          >
-            <TransportControls
-              isPlaying={isPlaying}
-              isRecording={isRecording}
-              isLooping={isLooping}
-              onPlay={handlePlay}
-              onPause={handlePause}
-              onStop={handleStop}
-              onSkipBack={() => handleSeek(Math.max(0, currentTime - 10))}
-              onSkipForward={() => handleSeek(Math.min(duration, currentTime + 10))}
-              onRecord={() => setIsRecording(!isRecording)}
-              onToggleLoop={() => setIsLooping(!isLooping)}
-            />
-
-            <div className="h-8 w-px bg-border hidden sm:block" />
-
-            <VolumeControl
-              volume={volume}
-              onChange={setVolume}
-              muted={isMuted}
-              onMuteToggle={() => setIsMuted(!isMuted)}
-            />
+        {/* Features Section */}
+        <div className="mt-20 animate-slide-up" style={{ animationDelay: '0.4s' }}>
+          <h3 className="text-center text-2xl font-semibold mb-10 text-muted-foreground">
+            Возможности платформы
+          </h3>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[
+              { icon: '🎛️', title: 'Эффекты', desc: 'Delay, Reverb, Filter' },
+              { icon: '✂️', title: 'Редактирование', desc: 'Обрезка, копирование' },
+              { icon: '📊', title: 'Визуализация', desc: 'Waveform, спектр' },
+              { icon: '💾', title: 'Экспорт', desc: 'WAV, MP3, FLAC' },
+            ].map((feature, i) => (
+              <div
+                key={feature.title}
+                className="text-center p-6 rounded-2xl glass hover:bg-card/60 transition-all duration-300"
+              >
+                <div className="text-4xl mb-3">{feature.icon}</div>
+                <h4 className="font-semibold mb-1">{feature.title}</h4>
+                <p className="text-sm text-muted-foreground">{feature.desc}</p>
+              </div>
+            ))}
           </div>
-        )}
-
-        {/* Timeline */}
-        {hasFile && (
-          <div className="animate-slide-up" style={{ animationDelay: '0.3s' }}>
-            <Timeline
-              duration={duration}
-              currentTime={currentTime}
-              regions={regions}
-              selectedRegion={selectedRegion}
-              onSeek={handleSeek}
-              onRegionSelect={setSelectedRegion}
-              onCut={handleCut}
-              onCopy={handleCopy}
-              onDelete={handleDelete}
-              onAddPause={handleAddPause}
-            />
-          </div>
-        )}
-
-        {/* Effects Panel */}
-        {hasFile && (
-          <div className="animate-slide-up" style={{ animationDelay: '0.4s' }}>
-            <EffectsPanel />
-          </div>
-        )}
-
-        {/* Keyboard shortcuts hint */}
-        {hasFile && (
-          <div className="flex flex-wrap justify-center gap-4 text-xs text-muted-foreground py-4 animate-fade-in">
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">Space</kbd>
-              Play/Pause
-            </span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">←</kbd>
-              <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">→</kbd>
-              Перемотка
-            </span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">L</kbd>
-              Loop
-            </span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">Delete</kbd>
-              Удалить регион
-            </span>
-          </div>
-        )}
+        </div>
       </main>
     </div>
   );
