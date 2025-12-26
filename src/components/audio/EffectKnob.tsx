@@ -11,6 +11,7 @@ interface EffectKnobProps {
   color?: 'cyan' | 'magenta' | 'orange' | 'green';
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  disabled?: boolean;
 }
 
 const EffectKnob = ({
@@ -23,6 +24,7 @@ const EffectKnob = ({
   color = 'cyan',
   size = 'md',
   className,
+  disabled = false,
 }: EffectKnobProps) => {
   const knobRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);

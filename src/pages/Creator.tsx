@@ -30,6 +30,8 @@ interface Track {
 const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const octaves = [5, 4, 3, 2];
 
+import type { AudioEffects } from '@/hooks/useAudioEngine';
+
 const Creator = () => {
   const navigate = useNavigate();
   const [isPlaying, setIsPlaying] = useState(false);
@@ -40,7 +42,12 @@ const Creator = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState<string>('track-1');
   const [isExporting, setIsExporting] = useState(false);
-
+  const [effects, setEffects] = useState<AudioEffects>({
+    delay: { enabled: false, time: 350, feedback: 40, mix: 30 },
+    reverb: { enabled: false, size: 60, decay: 45, mix: 35 },
+    filter: { enabled: false, cutoff: 8000, resonance: 20 },
+    distortion: { enabled: false, drive: 30, tone: 50, mix: 50 },
+  });
   const [tracks, setTracks] = useState<Track[]>([
     {
       id: 'track-1',
@@ -511,7 +518,7 @@ const Creator = () => {
 
         {/* Effects Panel */}
         <div className="animate-slide-up" style={{ animationDelay: '0.4s' }}>
-          <EffectsPanel />
+          <EffectsPanel effects={effects} onEffectsChange={setEffects} />
         </div>
 
         {/* Tips */}
