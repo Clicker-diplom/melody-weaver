@@ -19,7 +19,7 @@ interface Note {
   duration: number;
 }
 
-type SynthType = 'lead' | 'bass' | 'pad' | 'pluck' | 'keys';
+type SynthType = 'lead' | 'bass' | 'pad' | 'pluck' | 'keys' | 'strings' | 'brass' | 'bells';
 
 interface Track {
   id: string;
@@ -39,7 +39,10 @@ const synthNames: Record<SynthType, string> = {
   bass: 'Бас',
   pad: 'Pad',
   pluck: 'Pluck',
-  keys: 'Keys'
+  keys: 'Keys',
+  strings: 'Strings',
+  brass: 'Brass',
+  bells: 'Bells'
 };
 
 const Creator = () => {
@@ -366,6 +369,107 @@ const Creator = () => {
         outputGain.gain.exponentialRampToValueAtTime(1, startTime + 0.01);
         outputGain.gain.setValueAtTime(0.8, startTime + duration * 0.9);
         outputGain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        break;
+      }
+      
+      case 'strings': {
+        // Strings: layered saws with slow attack and vibrato
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 2500;
+        filter.Q.value = 0.7;
+        
+        // Vibrato LFO
+        const lfo = ctx.createOscillator();
+        lfo.type = 'sine';
+        lfo.frequency.value = 5;
+        const lfoGain = ctx.createGain();
+        lfoGain.gain.value = 3;
+        lfo.connect(lfoGain);
+        lfo.start(startTime);
+        lfo.stop(startTime + duration);
+        
+        for (let i = 0; i < 3; i++) {
+          const osc = ctx.createOscillator();
+          osc.type = 'sawtooth';
+          osc.frequency.value = frequency * (1 + (i - 1) * 0.003);
+          lfoGain.connect(osc.frequency);
+          const g = ctx.createGain();
+          g.gain.value = velocity * 0.25;
+          osc.connect(g);
+          g.connect(filter);
+          voices.push(osc);
+        }
+        filter.connect(outputGain);
+        
+        // Slow string-like attack
+        outputGain.gain.setValueAtTime(0.001, startTime);
+        outputGain.gain.exponentialRampToValueAtTime(1, startTime + 0.2);
+        outputGain.gain.setValueAtTime(0.9, startTime + duration * 0.7);
+        outputGain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        break;
+      }
+      
+      case 'brass': {
+        // Brass: filtered saws with quick attack and growl
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 1800;
+        filter.Q.value = 4;
+        
+        // Filter envelope
+        filter.frequency.setValueAtTime(500, startTime);
+        filter.frequency.exponentialRampToValueAtTime(1800, startTime + 0.08);
+        
+        for (let i = 0; i < 2; i++) {
+          const osc = ctx.createOscillator();
+          osc.type = 'sawtooth';
+          osc.frequency.value = frequency * (1 + (i - 0.5) * 0.006);
+          const g = ctx.createGain();
+          g.gain.value = velocity * 0.4;
+          osc.connect(g);
+          g.connect(filter);
+          voices.push(osc);
+        }
+        filter.connect(outputGain);
+        
+        outputGain.gain.setValueAtTime(0.001, startTime);
+        outputGain.gain.exponentialRampToValueAtTime(1, startTime + 0.05);
+        outputGain.gain.setValueAtTime(0.85, startTime + duration * 0.8);
+        outputGain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        break;
+      }
+      
+      case 'bells': {
+        // Bells: FM synthesis with bright harmonics
+        const carrier = ctx.createOscillator();
+        carrier.type = 'sine';
+        carrier.frequency.value = frequency;
+        
+        const modulator = ctx.createOscillator();
+        modulator.type = 'sine';
+        modulator.frequency.value = frequency * 3.5; // Non-harmonic ratio for bell-like sound
+        
+        const modGain = ctx.createGain();
+        modGain.gain.value = frequency * 2; // FM depth
+        modGain.gain.setValueAtTime(frequency * 2, startTime);
+        modGain.gain.exponentialRampToValueAtTime(frequency * 0.1, startTime + duration);
+        
+        modulator.connect(modGain);
+        modGain.connect(carrier.frequency);
+        
+        const carrierGain = ctx.createGain();
+        carrierGain.gain.value = velocity * 0.4;
+        carrier.connect(carrierGain);
+        carrierGain.connect(outputGain);
+        
+        modulator.start(startTime);
+        modulator.stop(startTime + duration);
+        voices.push(carrier);
+        
+        // Quick attack, long decay like a real bell
+        outputGain.gain.setValueAtTime(1, startTime);
+        outputGain.gain.exponentialRampToValueAtTime(0.001, startTime + Math.max(duration, 1));
         break;
       }
     }
