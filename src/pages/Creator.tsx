@@ -604,9 +604,15 @@ const Creator = () => {
     ));
   }, []);
 
+  const changeTrackSynth = useCallback((trackId: string, synth: SynthType) => {
+    setTracks(prev => prev.map(t =>
+      t.id === trackId ? { ...t, synth } : t
+    ));
+  }, []);
+
   const addTrack = useCallback(() => {
-    const colors = ['hsl(25, 100%, 60%)', 'hsl(142, 70%, 50%)', 'hsl(270, 70%, 60%)'];
-    const synths: SynthType[] = ['pad', 'pluck', 'keys'];
+    const colors = ['hsl(25, 100%, 60%)', 'hsl(142, 70%, 50%)', 'hsl(270, 70%, 60%)', 'hsl(200, 80%, 55%)', 'hsl(340, 75%, 55%)'];
+    const synths: SynthType[] = ['pad', 'pluck', 'keys', 'strings', 'brass', 'bells'];
     const newTrack: Track = {
       id: `track-${Date.now()}`,
       name: `Трек ${tracks.length + 1}`,
@@ -837,7 +843,19 @@ const Creator = () => {
                   </button>
                 )}
               </div>
-              <span className="text-xs text-muted-foreground ml-5">{synthNames[track.synth]}</span>
+              <select
+                value={track.synth}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  changeTrackSynth(track.id, e.target.value as SynthType);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="text-xs bg-muted/50 border border-border/50 rounded px-1 py-0.5 ml-5 cursor-pointer hover:bg-muted"
+              >
+                {(Object.keys(synthNames) as SynthType[]).map(s => (
+                  <option key={s} value={s}>{synthNames[s]}</option>
+                ))}
+              </select>
             </button>
           ))}
           <Button variant="glass" size="sm" onClick={addTrack} className="gap-1">
