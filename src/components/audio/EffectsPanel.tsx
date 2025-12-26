@@ -1,108 +1,101 @@
-import { useState } from 'react';
 import { Power, Waves, Timer, Radio, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
 import EffectKnob from './EffectKnob';
 import { cn } from '@/lib/utils';
-
-interface Effect {
-  id: string;
-  name: string;
-  icon: React.ReactNode;
-  enabled: boolean;
-  params: Record<string, number>;
-  color: 'cyan' | 'magenta' | 'orange' | 'green';
-}
+import type { AudioEffects } from '@/hooks/useAudioEngine';
 
 interface EffectsPanelProps {
+  effects: AudioEffects;
+  onEffectsChange: (effects: AudioEffects) => void;
   className?: string;
 }
 
-const EffectsPanel = ({ className }: EffectsPanelProps) => {
-  const [effects, setEffects] = useState<Effect[]>([
-    {
-      id: 'delay',
-      name: 'Delay',
-      icon: <Timer className="h-4 w-4" />,
-      enabled: true,
-      params: { time: 350, feedback: 40, mix: 30 },
-      color: 'cyan',
-    },
-    {
-      id: 'reverb',
-      name: 'Reverb',
-      icon: <Waves className="h-4 w-4" />,
-      enabled: true,
-      params: { size: 60, decay: 45, mix: 35 },
-      color: 'magenta',
-    },
-    {
-      id: 'filter',
-      name: 'Filter',
-      icon: <SlidersHorizontal className="h-4 w-4" />,
-      enabled: false,
-      params: { cutoff: 8000, resonance: 20, type: 0 },
-      color: 'orange',
-    },
-    {
-      id: 'distortion',
-      name: 'Distortion',
-      icon: <Radio className="h-4 w-4" />,
-      enabled: false,
-      params: { drive: 30, tone: 50, mix: 50 },
-      color: 'green',
-    },
-  ]);
+type EffectId = 'delay' | 'reverb' | 'filter' | 'distortion';
 
-  const [selectedEffect, setSelectedEffect] = useState<string>('delay');
+interface EffectConfig {
+  id: EffectId;
+  name: string;
+  icon: React.ReactNode;
+  color: 'cyan' | 'magenta' | 'orange' | 'green';
+}
 
-  const toggleEffect = (id: string) => {
-    setEffects(prev =>
-      prev.map(effect =>
-        effect.id === id ? { ...effect, enabled: !effect.enabled } : effect
-      )
-    );
+const effectConfigs: EffectConfig[] = [
+  {
+    id: 'delay',
+    name: 'Delay',
+    icon: <Timer className="h-4 w-4" />,
+    color: 'cyan',
+  },
+  {
+    id: 'reverb',
+    name: 'Reverb',
+    icon: <Waves className="h-4 w-4" />,
+    color: 'magenta',
+  },
+  {
+    id: 'filter',
+    name: 'Filter',
+    icon: <SlidersHorizontal className="h-4 w-4" />,
+    color: 'orange',
+  },
+  {
+    id: 'distortion',
+    name: 'Distortion',
+    icon: <Radio className="h-4 w-4" />,
+    color: 'green',
+  },
+];
+
+const EffectsPanel = ({ effects, onEffectsChange, className }: EffectsPanelProps) => {
+  const [selectedEffect, setSelectedEffect] = React.useState<EffectId>('delay');
+
+  const toggleEffect = (id: EffectId) => {
+    onEffectsChange({
+      ...effects,
+      [id]: { ...effects[id], enabled: !effects[id].enabled },
+    });
   };
 
-  const updateParam = (effectId: string, param: string, value: number) => {
-    setEffects(prev =>
-      prev.map(effect =>
-        effect.id === effectId
-          ? { ...effect, params: { ...effect.params, [param]: value } }
-          : effect
-      )
-    );
+  const updateParam = (effectId: EffectId, param: string, value: number) => {
+    onEffectsChange({
+      ...effects,
+      [effectId]: { ...effects[effectId], [param]: value },
+    });
   };
 
-  const currentEffect = effects.find(e => e.id === selectedEffect);
+  const currentConfig = effectConfigs.find(e => e.id === selectedEffect);
+  const currentEffect = effects[selectedEffect];
 
   return (
     <div className={cn('glass rounded-2xl p-4', className)}>
       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
         <SlidersHorizontal className="h-5 w-5 text-primary" />
         Эффекты
+        <span className="ml-auto text-xs font-normal text-muted-foreground">
+          {effectConfigs.filter(e => effects[e.id].enabled).length} активно
+        </span>
       </h3>
 
       {/* Effect tabs */}
       <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-        {effects.map(effect => (
+        {effectConfigs.map(config => (
           <button
-            key={effect.id}
-            onClick={() => setSelectedEffect(effect.id)}
+            key={config.id}
+            onClick={() => setSelectedEffect(config.id)}
             className={cn(
               'flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200',
               'border whitespace-nowrap',
-              selectedEffect === effect.id
+              selectedEffect === config.id
                 ? 'bg-primary/20 border-primary text-primary'
                 : 'bg-muted/30 border-border/50 text-muted-foreground hover:text-foreground hover:border-border'
             )}
           >
-            {effect.icon}
-            <span className="text-sm font-medium">{effect.name}</span>
+            {config.icon}
+            <span className="text-sm font-medium">{config.name}</span>
             <div
               className={cn(
                 'w-2 h-2 rounded-full transition-colors',
-                effect.enabled ? 'bg-glow-green' : 'bg-muted-foreground/30'
+                effects[config.id].enabled ? 'bg-glow-green animate-pulse' : 'bg-muted-foreground/30'
               )}
             />
           </button>
@@ -110,15 +103,20 @@ const EffectsPanel = ({ className }: EffectsPanelProps) => {
       </div>
 
       {/* Effect controls */}
-      {currentEffect && (
+      {currentConfig && (
         <div className="animate-fade-in">
           {/* Enable toggle */}
           <div className="flex items-center justify-between mb-6">
-            <span className="text-sm text-muted-foreground">Активен</span>
+            <span className="text-sm text-muted-foreground">
+              {currentEffect.enabled ? 'Эффект активен' : 'Эффект выключен'}
+            </span>
             <Button
               variant={currentEffect.enabled ? 'transport-active' : 'transport'}
               size="icon-sm"
-              onClick={() => toggleEffect(currentEffect.id)}
+              onClick={() => toggleEffect(currentConfig.id)}
+              className={cn(
+                currentEffect.enabled && 'ring-2 ring-glow-green/50'
+              )}
             >
               <Power className="h-4 w-4" />
             </Button>
@@ -126,102 +124,122 @@ const EffectsPanel = ({ className }: EffectsPanelProps) => {
 
           {/* Knobs */}
           <div className="flex justify-around flex-wrap gap-6">
-            {currentEffect.id === 'delay' && (
+            {currentConfig.id === 'delay' && (
               <>
                 <EffectKnob
                   label="Time"
-                  value={currentEffect.params.time}
+                  value={effects.delay.time}
                   min={10}
                   max={1000}
                   unit="ms"
-                  color={currentEffect.color}
+                  color={currentConfig.color}
                   onChange={(v) => updateParam('delay', 'time', v)}
+                  disabled={!effects.delay.enabled}
                 />
                 <EffectKnob
                   label="Feedback"
-                  value={currentEffect.params.feedback}
-                  color={currentEffect.color}
+                  value={effects.delay.feedback}
+                  color={currentConfig.color}
                   onChange={(v) => updateParam('delay', 'feedback', v)}
+                  disabled={!effects.delay.enabled}
                 />
                 <EffectKnob
                   label="Mix"
-                  value={currentEffect.params.mix}
-                  color={currentEffect.color}
+                  value={effects.delay.mix}
+                  color={currentConfig.color}
                   onChange={(v) => updateParam('delay', 'mix', v)}
+                  disabled={!effects.delay.enabled}
                 />
               </>
             )}
 
-            {currentEffect.id === 'reverb' && (
+            {currentConfig.id === 'reverb' && (
               <>
                 <EffectKnob
                   label="Size"
-                  value={currentEffect.params.size}
-                  color={currentEffect.color}
+                  value={effects.reverb.size}
+                  color={currentConfig.color}
                   onChange={(v) => updateParam('reverb', 'size', v)}
+                  disabled={!effects.reverb.enabled}
                 />
                 <EffectKnob
                   label="Decay"
-                  value={currentEffect.params.decay}
-                  color={currentEffect.color}
+                  value={effects.reverb.decay}
+                  color={currentConfig.color}
                   onChange={(v) => updateParam('reverb', 'decay', v)}
+                  disabled={!effects.reverb.enabled}
                 />
                 <EffectKnob
                   label="Mix"
-                  value={currentEffect.params.mix}
-                  color={currentEffect.color}
+                  value={effects.reverb.mix}
+                  color={currentConfig.color}
                   onChange={(v) => updateParam('reverb', 'mix', v)}
+                  disabled={!effects.reverb.enabled}
                 />
               </>
             )}
 
-            {currentEffect.id === 'filter' && (
+            {currentConfig.id === 'filter' && (
               <>
                 <EffectKnob
                   label="Cutoff"
-                  value={currentEffect.params.cutoff}
+                  value={effects.filter.cutoff}
                   min={20}
                   max={20000}
                   unit="Hz"
-                  color={currentEffect.color}
+                  color={currentConfig.color}
                   onChange={(v) => updateParam('filter', 'cutoff', v)}
+                  disabled={!effects.filter.enabled}
                 />
                 <EffectKnob
                   label="Resonance"
-                  value={currentEffect.params.resonance}
-                  color={currentEffect.color}
+                  value={effects.filter.resonance}
+                  color={currentConfig.color}
                   onChange={(v) => updateParam('filter', 'resonance', v)}
+                  disabled={!effects.filter.enabled}
                 />
               </>
             )}
 
-            {currentEffect.id === 'distortion' && (
+            {currentConfig.id === 'distortion' && (
               <>
                 <EffectKnob
                   label="Drive"
-                  value={currentEffect.params.drive}
-                  color={currentEffect.color}
+                  value={effects.distortion.drive}
+                  color={currentConfig.color}
                   onChange={(v) => updateParam('distortion', 'drive', v)}
+                  disabled={!effects.distortion.enabled}
                 />
                 <EffectKnob
                   label="Tone"
-                  value={currentEffect.params.tone}
-                  color={currentEffect.color}
+                  value={effects.distortion.tone}
+                  color={currentConfig.color}
                   onChange={(v) => updateParam('distortion', 'tone', v)}
+                  disabled={!effects.distortion.enabled}
                 />
                 <EffectKnob
                   label="Mix"
-                  value={currentEffect.params.mix}
-                  color={currentEffect.color}
+                  value={effects.distortion.mix}
+                  color={currentConfig.color}
                   onChange={(v) => updateParam('distortion', 'mix', v)}
+                  disabled={!effects.distortion.enabled}
                 />
               </>
             )}
           </div>
+          
+          {/* Effect description */}
+          <p className="text-xs text-muted-foreground mt-6 text-center">
+            {currentConfig.id === 'delay' && 'Эхо-эффект с настраиваемым временем задержки и обратной связью'}
+            {currentConfig.id === 'reverb' && 'Имитация акустического пространства с регулировкой размера и затухания'}
+            {currentConfig.id === 'filter' && 'Низкочастотный фильтр для срезания высоких частот'}
+            {currentConfig.id === 'distortion' && 'Эффект искажения для добавления гармоник и насыщенности'}
+          </p>
         </div>
       )}
     </div>
   );
 };
 
+import React from 'react';
 export default EffectsPanel;

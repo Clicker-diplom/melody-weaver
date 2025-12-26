@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ArrowLeft } from 'lucide-react';
@@ -18,7 +18,7 @@ const Editor = () => {
   const navigate = useNavigate();
   const [hasFile, setHasFile] = useState(false);
   const [fileName, setFileName] = useState('');
-  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState<{ id: string; start: number; end: number } | null>(null);
   const [zoom, setZoom] = useState(100);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -42,6 +42,7 @@ const Editor = () => {
       setHasFile(true);
       setFileName(file.name);
       setRegions([]);
+      setSelectedRegion(null);
       toast.success(`Загружен: ${file.name}`);
     } catch {
       toast.error('Ошибка загрузки файла');
@@ -54,18 +55,18 @@ const Editor = () => {
       return;
     }
     audioEngine.play();
-    toast.success('Воспроизведение');
   }, [hasFile, audioEngine]);
 
   const handleCut = useCallback(() => {
     if (selectedRegion) {
-      setRegions(prev => prev.filter(r => r.id !== selectedRegion));
+      audioEngine.cutRegion({ start: selectedRegion.start, end: selectedRegion.end });
+      setRegions(prev => prev.filter(r => r.id !== selectedRegion.id));
       setSelectedRegion(null);
       toast.success('Регион вырезан');
     } else {
-      toast.info('Выберите регион для вырезания');
+      toast.info('Выберите регион на waveform для вырезания');
     }
-  }, [selectedRegion]);
+  }, [selectedRegion, audioEngine]);
 
   const handleCopy = useCallback(() => {
     if (selectedRegion) {
@@ -77,40 +78,77 @@ const Editor = () => {
 
   const handleDelete = useCallback(() => {
     if (selectedRegion) {
-      setRegions(prev => prev.filter(r => r.id !== selectedRegion));
+      audioEngine.deleteRegion({ start: selectedRegion.start, end: selectedRegion.end });
+      setRegions(prev => prev.filter(r => r.id !== selectedRegion.id));
       setSelectedRegion(null);
-      toast.success('Регион удалён');
+      toast.success('Регион удалён (заменён тишиной)');
     } else {
       toast.info('Выберите регион для удаления');
     }
-  }, [selectedRegion]);
+  }, [selectedRegion, audioEngine]);
 
   const handleAddPause = useCallback(() => {
-    const newRegion = {
-      id: `pause-${Date.now()}`,
-      start: audioEngine.currentTime,
-      end: audioEngine.currentTime + 2,
-      color: 'hsl(240, 10%, 40%)',
-      label: 'Пауза',
-    };
-    setRegions(prev => [...prev, newRegion]);
-    toast.success('Пауза добавлена');
-  }, [audioEngine.currentTime]);
+    audioEngine.insertSilence(audioEngine.currentTime, 2);
+    toast.success('Пауза 2 сек добавлена');
+  }, [audioEngine]);
 
   const handleNormalize = useCallback(() => {
+    audioEngine.normalize();
     toast.success('Громкость нормализована');
-  }, []);
+  }, [audioEngine]);
 
   const handleFadeIn = useCallback(() => {
-    toast.success('Fade In применён');
-  }, []);
+    if (selectedRegion) {
+      audioEngine.fadeIn({ start: selectedRegion.start, end: selectedRegion.end });
+      toast.success('Fade In применён к региону');
+    } else {
+      audioEngine.fadeIn({ start: 0, end: Math.min(3, audioEngine.duration) });
+      toast.success('Fade In применён (первые 3 сек)');
+    }
+  }, [selectedRegion, audioEngine]);
 
   const handleFadeOut = useCallback(() => {
-    toast.success('Fade Out применён');
-  }, []);
+    if (selectedRegion) {
+      audioEngine.fadeOut({ start: selectedRegion.start, end: selectedRegion.end });
+      toast.success('Fade Out применён к региону');
+    } else {
+      const start = Math.max(0, audioEngine.duration - 3);
+      audioEngine.fadeOut({ start, end: audioEngine.duration });
+      toast.success('Fade Out применён (последние 3 сек)');
+    }
+  }, [selectedRegion, audioEngine]);
 
   const handleSilence = useCallback(() => {
-    toast.success('Тишина вставлена');
+    audioEngine.insertSilence(audioEngine.currentTime, 1);
+    toast.success('Тишина 1 сек вставлена');
+  }, [audioEngine]);
+
+  const handleUndo = useCallback(() => {
+    if (audioEngine.undo()) {
+      toast.success('Отменено');
+    } else {
+      toast.info('Нечего отменять');
+    }
+  }, [audioEngine]);
+
+  const handleRedo = useCallback(() => {
+    if (audioEngine.redo()) {
+      toast.success('Повторено');
+    } else {
+      toast.info('Нечего повторять');
+    }
+  }, [audioEngine]);
+
+  const handleRegionSelect = useCallback((start: number, end: number) => {
+    const newRegion = {
+      id: `region-${Date.now()}`,
+      start,
+      end,
+      color: 'hsla(187, 100%, 50%, 0.3)',
+      label: 'Выделение',
+    };
+    setSelectedRegion(newRegion);
+    setRegions(prev => [...prev.filter(r => !r.id.startsWith('region-')), newRegion]);
   }, []);
 
   const handleExport = useCallback(async (format: 'wav' | 'mp3', quality: number) => {
@@ -185,9 +223,13 @@ const Editor = () => {
                 onFadeIn={handleFadeIn}
                 onFadeOut={handleFadeOut}
                 onSilence={handleSilence}
+                onUndo={handleUndo}
+                onRedo={handleRedo}
                 onZoomIn={() => setZoom(z => Math.min(400, z + 25))}
                 onZoomOut={() => setZoom(z => Math.max(25, z - 25))}
                 hasSelection={!!selectedRegion}
+                canUndo={audioEngine.canUndo}
+                canRedo={audioEngine.canRedo}
                 zoom={zoom}
               />
             </div>
@@ -206,6 +248,7 @@ const Editor = () => {
                     setFileName('');
                     audioEngine.stop();
                     setRegions([]);
+                    setSelectedRegion(null);
                   }}
                   className="text-muted-foreground hover:text-destructive"
                 >
@@ -213,11 +256,14 @@ const Editor = () => {
                 </Button>
               </div>
               <WaveformDisplay
+                audioData={audioEngine.waveformData.length > 0 ? audioEngine.waveformData : undefined}
                 isPlaying={audioEngine.isPlaying}
                 currentTime={audioEngine.currentTime}
                 duration={audioEngine.duration}
                 onSeek={audioEngine.seek}
                 showRegions={true}
+                selectedRegion={selectedRegion ? { start: selectedRegion.start, end: selectedRegion.end } : null}
+                onRegionSelect={handleRegionSelect}
               />
             </div>
 
@@ -265,9 +311,16 @@ const Editor = () => {
                 duration={audioEngine.duration}
                 currentTime={audioEngine.currentTime}
                 regions={regions}
-                selectedRegion={selectedRegion}
+                selectedRegion={selectedRegion?.id || null}
                 onSeek={audioEngine.seek}
-                onRegionSelect={setSelectedRegion}
+                onRegionSelect={(id) => {
+                  const region = regions.find(r => r.id === id);
+                  if (region) {
+                    setSelectedRegion(region);
+                  } else {
+                    setSelectedRegion(null);
+                  }
+                }}
                 onCut={handleCut}
                 onCopy={handleCopy}
                 onDelete={handleDelete}
@@ -277,7 +330,10 @@ const Editor = () => {
 
             {/* Effects Panel */}
             <div className="animate-slide-up" style={{ animationDelay: '0.3s' }}>
-              <EffectsPanel />
+              <EffectsPanel 
+                effects={audioEngine.effects}
+                onEffectsChange={audioEngine.setEffects}
+              />
             </div>
 
             {/* Keyboard shortcuts */}
@@ -292,8 +348,8 @@ const Editor = () => {
                 Перемотка
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">Ctrl+X</kbd>
-                Вырезать
+                <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">Ctrl+Z</kbd>
+                Отмена
               </span>
               <span className="flex items-center gap-1">
                 <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">Delete</kbd>
