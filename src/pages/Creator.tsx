@@ -19,7 +19,7 @@ interface Note {
   duration: number;
 }
 
-type SynthType = 'lead' | 'bass' | 'pad' | 'pluck' | 'keys' | 'strings' | 'brass' | 'bells';
+type SynthType = 'lead' | 'bass' | 'pad' | 'pluck' | 'keys' | 'strings' | 'brass' | 'bells' | 'organ' | 'marimba' | 'choir' | 'synth';
 
 interface Track {
   id: string;
@@ -42,7 +42,11 @@ const synthNames: Record<SynthType, string> = {
   keys: 'Keys',
   strings: 'Strings',
   brass: 'Brass',
-  bells: 'Bells'
+  bells: 'Bells',
+  organ: 'Орган',
+  marimba: 'Маримба',
+  choir: 'Хор',
+  synth: 'Синт'
 };
 
 const Creator = () => {
@@ -472,6 +476,141 @@ const Creator = () => {
         outputGain.gain.exponentialRampToValueAtTime(0.001, startTime + Math.max(duration, 1));
         break;
       }
+      
+      case 'organ': {
+        // Organ: drawbar-style additive synthesis
+        const harmonics = [1, 2, 3, 4, 5, 6, 8];
+        const drawbars = [1, 0.8, 0.6, 0.4, 0.3, 0.2, 0.1];
+        
+        harmonics.forEach((h, i) => {
+          const osc = ctx.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.value = frequency * h;
+          const g = ctx.createGain();
+          g.gain.value = velocity * drawbars[i] * 0.15;
+          osc.connect(g);
+          g.connect(outputGain);
+          voices.push(osc);
+        });
+        
+        // Slight click on attack like a real organ
+        outputGain.gain.setValueAtTime(1.2, startTime);
+        outputGain.gain.exponentialRampToValueAtTime(1, startTime + 0.02);
+        outputGain.gain.setValueAtTime(1, startTime + duration - 0.02);
+        outputGain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        break;
+      }
+      
+      case 'marimba': {
+        // Marimba: FM synthesis with quick decay
+        const carrier = ctx.createOscillator();
+        carrier.type = 'sine';
+        carrier.frequency.value = frequency;
+        
+        const modulator = ctx.createOscillator();
+        modulator.type = 'sine';
+        modulator.frequency.value = frequency * 4;
+        
+        const modGain = ctx.createGain();
+        modGain.gain.value = frequency * 0.8;
+        modGain.gain.setValueAtTime(frequency * 0.8, startTime);
+        modGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.15);
+        
+        modulator.connect(modGain);
+        modGain.connect(carrier.frequency);
+        
+        // Sub harmonic for warmth
+        const sub = ctx.createOscillator();
+        sub.type = 'sine';
+        sub.frequency.value = frequency * 0.5;
+        const subGain = ctx.createGain();
+        subGain.gain.value = velocity * 0.3;
+        sub.connect(subGain);
+        subGain.connect(outputGain);
+        voices.push(sub);
+        
+        const carrierGain = ctx.createGain();
+        carrierGain.gain.value = velocity * 0.5;
+        carrier.connect(carrierGain);
+        carrierGain.connect(outputGain);
+        
+        modulator.start(startTime);
+        modulator.stop(startTime + duration);
+        voices.push(carrier);
+        
+        outputGain.gain.setValueAtTime(1, startTime);
+        outputGain.gain.exponentialRampToValueAtTime(0.001, startTime + Math.min(duration, 0.8));
+        break;
+      }
+      
+      case 'choir': {
+        // Choir: layered voices with formants and vibrato
+        const formantFreqs = [800, 1200, 2600]; // Vowel "Ah"
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = formantFreqs[0];
+        filter.Q.value = 3;
+        
+        // Vibrato LFO
+        const lfo = ctx.createOscillator();
+        lfo.type = 'sine';
+        lfo.frequency.value = 4.5;
+        const lfoGain = ctx.createGain();
+        lfoGain.gain.value = 4;
+        lfo.connect(lfoGain);
+        lfo.start(startTime);
+        lfo.stop(startTime + duration);
+        
+        for (let i = 0; i < 4; i++) {
+          const osc = ctx.createOscillator();
+          osc.type = 'sawtooth';
+          osc.frequency.value = frequency * (1 + (i - 1.5) * 0.008);
+          lfoGain.connect(osc.frequency);
+          const g = ctx.createGain();
+          g.gain.value = velocity * 0.18;
+          osc.connect(g);
+          g.connect(filter);
+          voices.push(osc);
+        }
+        filter.connect(outputGain);
+        
+        outputGain.gain.setValueAtTime(0.001, startTime);
+        outputGain.gain.exponentialRampToValueAtTime(1, startTime + 0.25);
+        outputGain.gain.setValueAtTime(0.9, startTime + duration * 0.7);
+        outputGain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        break;
+      }
+      
+      case 'synth': {
+        // Synth: aggressive supersaw with filter sweep
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 2000;
+        filter.Q.value = 8;
+        
+        // Filter sweep
+        filter.frequency.setValueAtTime(400, startTime);
+        filter.frequency.exponentialRampToValueAtTime(4000, startTime + 0.1);
+        filter.frequency.exponentialRampToValueAtTime(1500, startTime + duration * 0.5);
+        
+        for (let i = 0; i < 5; i++) {
+          const osc = ctx.createOscillator();
+          osc.type = 'sawtooth';
+          osc.frequency.value = frequency * (1 + (i - 2) * 0.015);
+          const g = ctx.createGain();
+          g.gain.value = velocity * 0.2;
+          osc.connect(g);
+          g.connect(filter);
+          voices.push(osc);
+        }
+        filter.connect(outputGain);
+        
+        outputGain.gain.setValueAtTime(0.001, startTime);
+        outputGain.gain.exponentialRampToValueAtTime(1, startTime + 0.01);
+        outputGain.gain.setValueAtTime(0.8, startTime + duration * 0.85);
+        outputGain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        break;
+      }
     }
     
     return {
@@ -612,7 +751,7 @@ const Creator = () => {
 
   const addTrack = useCallback(() => {
     const colors = ['hsl(25, 100%, 60%)', 'hsl(142, 70%, 50%)', 'hsl(270, 70%, 60%)', 'hsl(200, 80%, 55%)', 'hsl(340, 75%, 55%)'];
-    const synths: SynthType[] = ['pad', 'pluck', 'keys', 'strings', 'brass', 'bells'];
+    const synths: SynthType[] = ['pad', 'pluck', 'keys', 'strings', 'brass', 'bells', 'organ', 'marimba', 'choir', 'synth'];
     const newTrack: Track = {
       id: `track-${Date.now()}`,
       name: `Трек ${tracks.length + 1}`,
