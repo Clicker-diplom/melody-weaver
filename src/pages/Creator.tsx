@@ -64,6 +64,10 @@ const Creator = () => {
     reverb: { enabled: false, size: 60, decay: 45, mix: 35 },
     filter: { enabled: false, cutoff: 8000, resonance: 20 },
     distortion: { enabled: false, drive: 30, tone: 50, mix: 50 },
+    compressor: { enabled: false, threshold: -24, ratio: 4, attack: 10, release: 100 },
+    eq: { enabled: false, low: 0, mid: 0, high: 0 },
+    chorus: { enabled: false, rate: 1.5, depth: 50, mix: 50 },
+    phaser: { enabled: false, rate: 0.5, depth: 50, feedback: 50 },
   });
 
   const [tracks, setTracks] = useState<Track[]>([

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Power, Waves, Timer, Radio, SlidersHorizontal } from 'lucide-react';
+import { Power, Waves, Timer, Radio, SlidersHorizontal, Volume2, Music2, Sparkles, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import EffectKnob from './EffectKnob';
 import { cn } from '@/lib/utils';
@@ -11,7 +11,7 @@ interface EffectsPanelProps {
   className?: string;
 }
 
-type EffectId = 'delay' | 'reverb' | 'filter' | 'distortion';
+type EffectId = 'delay' | 'reverb' | 'filter' | 'distortion' | 'compressor' | 'eq' | 'chorus' | 'phaser';
 
 interface EffectConfig {
   id: EffectId;
@@ -43,6 +43,30 @@ const effectConfigs: EffectConfig[] = [
     id: 'distortion',
     name: 'Distortion',
     icon: <Radio className="h-4 w-4" />,
+    color: 'green',
+  },
+  {
+    id: 'compressor',
+    name: 'Compressor',
+    icon: <Volume2 className="h-4 w-4" />,
+    color: 'cyan',
+  },
+  {
+    id: 'eq',
+    name: 'EQ',
+    icon: <SlidersHorizontal className="h-4 w-4" />,
+    color: 'magenta',
+  },
+  {
+    id: 'chorus',
+    name: 'Chorus',
+    icon: <Music2 className="h-4 w-4" />,
+    color: 'orange',
+  },
+  {
+    id: 'phaser',
+    name: 'Phaser',
+    icon: <Zap className="h-4 w-4" />,
     color: 'green',
   },
 ];
@@ -227,6 +251,144 @@ const EffectsPanel = ({ effects, onEffectsChange, className }: EffectsPanelProps
                 />
               </>
             )}
+
+            {currentConfig.id === 'compressor' && (
+              <>
+                <EffectKnob
+                  label="Threshold"
+                  value={effects.compressor.threshold}
+                  min={-60}
+                  max={0}
+                  unit="dB"
+                  color={currentConfig.color}
+                  onChange={(v) => updateParam('compressor', 'threshold', v)}
+                  disabled={!effects.compressor.enabled}
+                />
+                <EffectKnob
+                  label="Ratio"
+                  value={effects.compressor.ratio}
+                  min={1}
+                  max={20}
+                  unit=":1"
+                  color={currentConfig.color}
+                  onChange={(v) => updateParam('compressor', 'ratio', v)}
+                  disabled={!effects.compressor.enabled}
+                />
+                <EffectKnob
+                  label="Attack"
+                  value={effects.compressor.attack}
+                  min={0}
+                  max={100}
+                  unit="ms"
+                  color={currentConfig.color}
+                  onChange={(v) => updateParam('compressor', 'attack', v)}
+                  disabled={!effects.compressor.enabled}
+                />
+                <EffectKnob
+                  label="Release"
+                  value={effects.compressor.release}
+                  min={10}
+                  max={1000}
+                  unit="ms"
+                  color={currentConfig.color}
+                  onChange={(v) => updateParam('compressor', 'release', v)}
+                  disabled={!effects.compressor.enabled}
+                />
+              </>
+            )}
+
+            {currentConfig.id === 'eq' && (
+              <>
+                <EffectKnob
+                  label="Low"
+                  value={effects.eq.low}
+                  min={-12}
+                  max={12}
+                  unit="dB"
+                  color={currentConfig.color}
+                  onChange={(v) => updateParam('eq', 'low', v)}
+                  disabled={!effects.eq.enabled}
+                />
+                <EffectKnob
+                  label="Mid"
+                  value={effects.eq.mid}
+                  min={-12}
+                  max={12}
+                  unit="dB"
+                  color={currentConfig.color}
+                  onChange={(v) => updateParam('eq', 'mid', v)}
+                  disabled={!effects.eq.enabled}
+                />
+                <EffectKnob
+                  label="High"
+                  value={effects.eq.high}
+                  min={-12}
+                  max={12}
+                  unit="dB"
+                  color={currentConfig.color}
+                  onChange={(v) => updateParam('eq', 'high', v)}
+                  disabled={!effects.eq.enabled}
+                />
+              </>
+            )}
+
+            {currentConfig.id === 'chorus' && (
+              <>
+                <EffectKnob
+                  label="Rate"
+                  value={effects.chorus.rate}
+                  min={0.1}
+                  max={10}
+                  unit="Hz"
+                  color={currentConfig.color}
+                  onChange={(v) => updateParam('chorus', 'rate', v)}
+                  disabled={!effects.chorus.enabled}
+                />
+                <EffectKnob
+                  label="Depth"
+                  value={effects.chorus.depth}
+                  color={currentConfig.color}
+                  onChange={(v) => updateParam('chorus', 'depth', v)}
+                  disabled={!effects.chorus.enabled}
+                />
+                <EffectKnob
+                  label="Mix"
+                  value={effects.chorus.mix}
+                  color={currentConfig.color}
+                  onChange={(v) => updateParam('chorus', 'mix', v)}
+                  disabled={!effects.chorus.enabled}
+                />
+              </>
+            )}
+
+            {currentConfig.id === 'phaser' && (
+              <>
+                <EffectKnob
+                  label="Rate"
+                  value={effects.phaser.rate}
+                  min={0.1}
+                  max={5}
+                  unit="Hz"
+                  color={currentConfig.color}
+                  onChange={(v) => updateParam('phaser', 'rate', v)}
+                  disabled={!effects.phaser.enabled}
+                />
+                <EffectKnob
+                  label="Depth"
+                  value={effects.phaser.depth}
+                  color={currentConfig.color}
+                  onChange={(v) => updateParam('phaser', 'depth', v)}
+                  disabled={!effects.phaser.enabled}
+                />
+                <EffectKnob
+                  label="Feedback"
+                  value={effects.phaser.feedback}
+                  color={currentConfig.color}
+                  onChange={(v) => updateParam('phaser', 'feedback', v)}
+                  disabled={!effects.phaser.enabled}
+                />
+              </>
+            )}
           </div>
           
           {/* Effect description */}
@@ -235,6 +397,10 @@ const EffectsPanel = ({ effects, onEffectsChange, className }: EffectsPanelProps
             {currentConfig.id === 'reverb' && 'Имитация акустического пространства с регулировкой размера и затухания'}
             {currentConfig.id === 'filter' && 'Низкочастотный фильтр для срезания высоких частот'}
             {currentConfig.id === 'distortion' && 'Эффект искажения для добавления гармоник и насыщенности'}
+            {currentConfig.id === 'compressor' && 'Динамическая обработка для выравнивания громкости'}
+            {currentConfig.id === 'eq' && 'Трёхполосный эквалайзер для коррекции тембра'}
+            {currentConfig.id === 'chorus' && 'Эффект хоруса для добавления глубины и объёма'}
+            {currentConfig.id === 'phaser' && 'Фазовый эффект для создания характерного "плавающего" звука'}
           </p>
         </div>
       )}

@@ -5,6 +5,10 @@ export interface AudioEffects {
   reverb: { enabled: boolean; size: number; decay: number; mix: number };
   filter: { enabled: boolean; cutoff: number; resonance: number };
   distortion: { enabled: boolean; drive: number; tone: number; mix: number };
+  compressor: { enabled: boolean; threshold: number; ratio: number; attack: number; release: number };
+  eq: { enabled: boolean; low: number; mid: number; high: number };
+  chorus: { enabled: boolean; rate: number; depth: number; mix: number };
+  phaser: { enabled: boolean; rate: number; depth: number; feedback: number };
 }
 
 interface UseAudioEngineOptions {
@@ -53,6 +57,10 @@ export const useAudioEngine = (options: UseAudioEngineOptions = {}) => {
     reverb: { enabled: false, size: 60, decay: 45, mix: 35 },
     filter: { enabled: false, cutoff: 8000, resonance: 20 },
     distortion: { enabled: false, drive: 30, tone: 50, mix: 50 },
+    compressor: { enabled: false, threshold: -24, ratio: 4, attack: 10, release: 100 },
+    eq: { enabled: false, low: 0, mid: 0, high: 0 },
+    chorus: { enabled: false, rate: 1.5, depth: 50, mix: 50 },
+    phaser: { enabled: false, rate: 0.5, depth: 50, feedback: 50 },
   });
 
   // Create distortion curve
