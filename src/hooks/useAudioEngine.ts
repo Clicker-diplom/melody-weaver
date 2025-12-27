@@ -51,6 +51,21 @@ export const useAudioEngine = (options: UseAudioEngineOptions = {}) => {
   const animationFrameRef = useRef<number | null>(null);
   const historyRef = useRef<AudioBuffer[]>([]);
   const historyIndexRef = useRef(-1);
+  
+  // New effect nodes
+  const compressorNodeRef = useRef<DynamicsCompressorNode | null>(null);
+  const eqLowRef = useRef<BiquadFilterNode | null>(null);
+  const eqMidRef = useRef<BiquadFilterNode | null>(null);
+  const eqHighRef = useRef<BiquadFilterNode | null>(null);
+  const chorusDelayRef = useRef<DelayNode | null>(null);
+  const chorusLfoRef = useRef<OscillatorNode | null>(null);
+  const chorusGainRef = useRef<GainNode | null>(null);
+  const chorusDepthRef = useRef<GainNode | null>(null);
+  const phaserFiltersRef = useRef<BiquadFilterNode[]>([]);
+  const phaserLfoRef = useRef<OscillatorNode | null>(null);
+  const phaserDepthRef = useRef<GainNode | null>(null);
+  const phaserFeedbackRef = useRef<GainNode | null>(null);
+  const phaserGainRef = useRef<GainNode | null>(null);
 
   const [effects, setEffects] = useState<AudioEffects>({
     delay: { enabled: false, time: 350, feedback: 40, mix: 30 },
@@ -107,6 +122,31 @@ export const useAudioEngine = (options: UseAudioEngineOptions = {}) => {
       dryGainRef.current = ctx.createGain();
       dryGainRef.current.gain.value = 1; // Full dry signal by default
       
+      // Compressor
+      compressorNodeRef.current = ctx.createDynamicsCompressor();
+      compressorNodeRef.current.threshold.value = -24;
+      compressorNodeRef.current.knee.value = 30;
+      compressorNodeRef.current.ratio.value = 4;
+      compressorNodeRef.current.attack.value = 0.01;
+      compressorNodeRef.current.release.value = 0.1;
+      
+      // EQ (3-band)
+      eqLowRef.current = ctx.createBiquadFilter();
+      eqLowRef.current.type = 'lowshelf';
+      eqLowRef.current.frequency.value = 320;
+      eqLowRef.current.gain.value = 0;
+      
+      eqMidRef.current = ctx.createBiquadFilter();
+      eqMidRef.current.type = 'peaking';
+      eqMidRef.current.frequency.value = 1000;
+      eqMidRef.current.Q.value = 0.5;
+      eqMidRef.current.gain.value = 0;
+      
+      eqHighRef.current = ctx.createBiquadFilter();
+      eqHighRef.current.type = 'highshelf';
+      eqHighRef.current.frequency.value = 3200;
+      eqHighRef.current.gain.value = 0;
+      
       // Delay chain
       delayNodeRef.current = ctx.createDelay(2);
       delayNodeRef.current.delayTime.value = 0.35;
@@ -133,9 +173,51 @@ export const useAudioEngine = (options: UseAudioEngineOptions = {}) => {
       // Create initial reverb impulse
       convolverNodeRef.current.buffer = createReverbImpulse(ctx, 2, 2);
       
+      // Chorus
+      chorusDelayRef.current = ctx.createDelay(0.05);
+      chorusDelayRef.current.delayTime.value = 0.025;
+      chorusGainRef.current = ctx.createGain();
+      chorusGainRef.current.gain.value = 0;
+      chorusDepthRef.current = ctx.createGain();
+      chorusDepthRef.current.gain.value = 0.002;
+      chorusLfoRef.current = ctx.createOscillator();
+      chorusLfoRef.current.type = 'sine';
+      chorusLfoRef.current.frequency.value = 1.5;
+      chorusLfoRef.current.connect(chorusDepthRef.current);
+      chorusDepthRef.current.connect(chorusDelayRef.current.delayTime);
+      chorusLfoRef.current.start();
+      
+      // Phaser (4 allpass filters)
+      phaserFiltersRef.current = [];
+      phaserGainRef.current = ctx.createGain();
+      phaserGainRef.current.gain.value = 0;
+      phaserFeedbackRef.current = ctx.createGain();
+      phaserFeedbackRef.current.gain.value = 0;
+      phaserDepthRef.current = ctx.createGain();
+      phaserDepthRef.current.gain.value = 1000;
+      phaserLfoRef.current = ctx.createOscillator();
+      phaserLfoRef.current.type = 'sine';
+      phaserLfoRef.current.frequency.value = 0.5;
+      
+      const phaserFreqs = [350, 500, 1000, 2000];
+      for (let i = 0; i < 4; i++) {
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'allpass';
+        filter.frequency.value = phaserFreqs[i];
+        filter.Q.value = 0.5;
+        phaserFiltersRef.current.push(filter);
+        phaserLfoRef.current.connect(phaserDepthRef.current);
+        phaserDepthRef.current.connect(filter.frequency);
+      }
+      phaserLfoRef.current.start();
+      
       // Connect effect chain:
-      // source -> gain -> filter -> distortion -> dry/delay/reverb -> master -> destination
-      gainNodeRef.current.connect(filterNodeRef.current);
+      // source -> gain -> compressor -> eq -> filter -> distortion -> dry/delay/reverb/chorus/phaser -> master -> destination
+      gainNodeRef.current.connect(compressorNodeRef.current);
+      compressorNodeRef.current.connect(eqLowRef.current);
+      eqLowRef.current.connect(eqMidRef.current);
+      eqMidRef.current.connect(eqHighRef.current);
+      eqHighRef.current.connect(filterNodeRef.current);
       filterNodeRef.current.connect(distortionNodeRef.current);
       
       // Dry signal (main path)
@@ -153,6 +235,22 @@ export const useAudioEngine = (options: UseAudioEngineOptions = {}) => {
       distortionNodeRef.current.connect(convolverNodeRef.current);
       convolverNodeRef.current.connect(reverbGainRef.current);
       reverbGainRef.current.connect(masterGainRef.current);
+      
+      // Chorus path
+      distortionNodeRef.current.connect(chorusDelayRef.current);
+      chorusDelayRef.current.connect(chorusGainRef.current);
+      chorusGainRef.current.connect(masterGainRef.current);
+      
+      // Phaser path
+      let lastNode: AudioNode = distortionNodeRef.current;
+      for (const filter of phaserFiltersRef.current) {
+        lastNode.connect(filter);
+        lastNode = filter;
+      }
+      lastNode.connect(phaserFeedbackRef.current);
+      phaserFeedbackRef.current.connect(phaserFiltersRef.current[0]);
+      lastNode.connect(phaserGainRef.current);
+      phaserGainRef.current.connect(masterGainRef.current);
       
       masterGainRef.current.connect(ctx.destination);
     }
@@ -184,11 +282,62 @@ export const useAudioEngine = (options: UseAudioEngineOptions = {}) => {
       reverbGainRef.current.gain.value = effects.reverb.enabled ? effects.reverb.mix / 100 : 0;
     }
     
+    // Compressor
+    if (compressorNodeRef.current) {
+      if (effects.compressor.enabled) {
+        compressorNodeRef.current.threshold.value = effects.compressor.threshold;
+        compressorNodeRef.current.ratio.value = effects.compressor.ratio;
+        compressorNodeRef.current.attack.value = effects.compressor.attack / 1000;
+        compressorNodeRef.current.release.value = effects.compressor.release / 1000;
+      } else {
+        compressorNodeRef.current.threshold.value = 0;
+        compressorNodeRef.current.ratio.value = 1;
+      }
+    }
+    
+    // EQ
+    if (eqLowRef.current && eqMidRef.current && eqHighRef.current) {
+      if (effects.eq.enabled) {
+        eqLowRef.current.gain.value = effects.eq.low;
+        eqMidRef.current.gain.value = effects.eq.mid;
+        eqHighRef.current.gain.value = effects.eq.high;
+      } else {
+        eqLowRef.current.gain.value = 0;
+        eqMidRef.current.gain.value = 0;
+        eqHighRef.current.gain.value = 0;
+      }
+    }
+    
+    // Chorus
+    if (chorusLfoRef.current && chorusGainRef.current && chorusDepthRef.current) {
+      if (effects.chorus.enabled) {
+        chorusLfoRef.current.frequency.value = effects.chorus.rate;
+        chorusDepthRef.current.gain.value = effects.chorus.depth / 25000;
+        chorusGainRef.current.gain.value = effects.chorus.mix / 100;
+      } else {
+        chorusGainRef.current.gain.value = 0;
+      }
+    }
+    
+    // Phaser
+    if (phaserLfoRef.current && phaserGainRef.current && phaserFeedbackRef.current && phaserDepthRef.current) {
+      if (effects.phaser.enabled) {
+        phaserLfoRef.current.frequency.value = effects.phaser.rate;
+        phaserDepthRef.current.gain.value = effects.phaser.depth * 20;
+        phaserFeedbackRef.current.gain.value = effects.phaser.feedback / 200;
+        phaserGainRef.current.gain.value = 0.5;
+      } else {
+        phaserGainRef.current.gain.value = 0;
+      }
+    }
+    
     if (dryGainRef.current) {
       const wetMix = (
         (effects.delay.enabled ? effects.delay.mix / 100 : 0) +
-        (effects.reverb.enabled ? effects.reverb.mix / 100 : 0)
-      ) / 2;
+        (effects.reverb.enabled ? effects.reverb.mix / 100 : 0) +
+        (effects.chorus.enabled ? effects.chorus.mix / 100 : 0) +
+        (effects.phaser.enabled ? 0.5 : 0)
+      ) / 4;
       dryGainRef.current.gain.value = 1 - wetMix * 0.5;
     }
     
