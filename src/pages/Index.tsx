@@ -43,25 +43,9 @@ const Index = forwardRef<HTMLDivElement>((_, ref) => {
               </div>
 
               {/* Title */}
-              <h2 className="text-3xl font-bold mb-4 group-hover:text-primary transition-colors">
+              <h2 className="text-3xl font-bold mb-6 group-hover:text-primary transition-colors">
                 Редактор
               </h2>
-
-              {/* Description */}
-              <p className="text-muted-foreground mb-6 leading-relaxed">
-                Загрузите свой аудиофайл и редактируйте его: 
-                добавляйте эффекты, обрезайте, изменяйте громкость, 
-                применяйте фильтры и экспортируйте результат.
-              </p>
-
-              {/* Features */}
-              <div className="flex flex-wrap gap-2 mb-6">
-                {['WAV', 'MP3', 'FLAC', 'OGG'].map(format => (
-                  <span key={format} className="px-3 py-1 text-xs font-mono rounded-full bg-primary/10 text-primary border border-primary/20">
-                    {format}
-                  </span>
-                ))}
-              </div>
 
               {/* Action */}
               <div className="flex items-center gap-2 text-primary font-medium">
@@ -91,25 +75,9 @@ const Index = forwardRef<HTMLDivElement>((_, ref) => {
               </div>
 
               {/* Title */}
-              <h2 className="text-3xl font-bold mb-4 group-hover:text-secondary transition-colors">
+              <h2 className="text-3xl font-bold mb-6 group-hover:text-secondary transition-colors">
                 Создание с нуля
               </h2>
-
-              {/* Description */}
-              <p className="text-muted-foreground mb-6 leading-relaxed">
-                Создавайте музыку с нуля используя синтезаторы, 
-                секвенсор, эффекты и экспортируйте готовые треки 
-                в популярных форматах.
-              </p>
-
-              {/* Features */}
-              <div className="flex flex-wrap gap-2 mb-6">
-                {['Синтез', 'Секвенсор', 'MIDI', 'Экспорт'].map(feature => (
-                  <span key={feature} className="px-3 py-1 text-xs font-mono rounded-full bg-secondary/10 text-secondary border border-secondary/20">
-                    {feature}
-                  </span>
-                ))}
-              </div>
 
               {/* Action */}
               <div className="flex items-center gap-2 text-secondary font-medium">
