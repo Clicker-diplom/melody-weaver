@@ -16,7 +16,7 @@ const Index = forwardRef<HTMLDivElement>((_, ref) => {
         <div className="text-center py-12 animate-slide-up">
           <h1 className="text-5xl md:text-7xl font-bold mb-6">
             <span className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-              SoundForge
+              SoundStorm
             </span>
           </h1>
         </div>
