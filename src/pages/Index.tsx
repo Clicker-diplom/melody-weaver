@@ -1,14 +1,14 @@
+import { forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Music, Wand2, FileAudio, Sparkles, ArrowRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Wand2, FileAudio, ArrowRight } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import { cn } from '@/lib/utils';
 
-const Index = () => {
+const Index = forwardRef<HTMLDivElement>((_, ref) => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-background gradient-mesh">
+    <div ref={ref} className="min-h-screen bg-background gradient-mesh">
       <Header />
 
       <main className="container max-w-6xl mx-auto px-4 py-12">
@@ -123,6 +123,8 @@ const Index = () => {
       </main>
     </div>
   );
-};
+});
+
+Index.displayName = 'Index';
 
 export default Index;
