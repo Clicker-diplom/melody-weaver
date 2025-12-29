@@ -1,14 +1,14 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Trash2, Upload, X, Music, Volume2, VolumeX } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Upload, Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Header from '@/components/layout/Header';
 import EffectsPanel from '@/components/audio/EffectsPanel';
 import TransportControls from '@/components/audio/TransportControls';
 import VolumeControl from '@/components/audio/VolumeControl';
 import ExportDialog from '@/components/audio/ExportDialog';
-import { Slider } from '@/components/ui/slider';
+import AudioTrackEditor, { type AudioTrackData, type AudioRegion } from '@/components/audio/AudioTrackEditor';
 import { cn } from '@/lib/utils';
 import type { AudioEffects } from '@/hooks/useAudioEngine';
 
@@ -32,15 +32,7 @@ interface Track {
   muted: boolean;
 }
 
-interface AudioTrack {
-  id: string;
-  name: string;
-  file: File;
-  buffer: AudioBuffer;
-  volume: number;
-  muted: boolean;
-  startBeat: number;
-}
+// AudioTrackData is imported from AudioTrackEditor
 
 const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const octaves = [5, 4, 3, 2];
@@ -110,7 +102,7 @@ const Creator = () => {
     },
   ]);
 
-  const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
+  const [audioTracks, setAudioTracks] = useState<AudioTrackData[]>([]);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const audioFileInputRef = useRef<HTMLInputElement>(null);
   const audioSourcesRef = useRef<Map<string, AudioBufferSourceNode>>(new Map());
@@ -730,21 +722,32 @@ const Creator = () => {
     audioTracks.forEach(track => {
       if (track.muted) return;
       
-      const source = audioContextRef.current!.createBufferSource();
-      source.buffer = track.buffer;
-      
-      const gainNode = audioContextRef.current!.createGain();
-      gainNode.gain.value = track.volume / 100;
-      
-      source.connect(gainNode);
-      gainNode.connect(masterGainRef.current!);
-      
-      const trackOffset = track.startBeat * beatDuration;
-      const audioStartTime = Math.max(0, startOffset - trackOffset);
-      const scheduleDelay = Math.max(0, trackOffset - startOffset);
-      
-      source.start(audioContextRef.current!.currentTime + scheduleDelay, audioStartTime);
-      audioSourcesRef.current.set(track.id, source);
+      // Play each region
+      track.regions.forEach(region => {
+        const source = audioContextRef.current!.createBufferSource();
+        source.buffer = track.buffer;
+        
+        const gainNode = audioContextRef.current!.createGain();
+        gainNode.gain.value = track.volume / 100;
+        
+        source.connect(gainNode);
+        gainNode.connect(masterGainRef.current!);
+        
+        const regionDuration = region.endTime - region.startTime;
+        const trackOffset = region.startBeat * beatDuration;
+        const audioStartTime = Math.max(0, startOffset - trackOffset);
+        const scheduleDelay = Math.max(0, trackOffset - startOffset);
+        
+        // Only play if the region is in the future or we're within it
+        if (scheduleDelay > 0 || audioStartTime < regionDuration) {
+          source.start(
+            audioContextRef.current!.currentTime + scheduleDelay, 
+            region.startTime + Math.min(audioStartTime, regionDuration),
+            Math.max(0, regionDuration - audioStartTime)
+          );
+          audioSourcesRef.current.set(`${track.id}-${region.id}`, source);
+        }
+      });
     });
     
     setIsPlaying(true);
@@ -845,14 +848,24 @@ const Creator = () => {
       const arrayBuffer = await file.arrayBuffer();
       const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
       
-      const newAudioTrack: AudioTrack = {
+      // Create initial region for full track
+      const initialRegion: AudioRegion = {
+        id: `region-${Date.now()}`,
+        startTime: 0,
+        endTime: audioBuffer.duration,
+        startBeat: 0,
+        color: `hsl(${Math.floor(Math.random() * 360)}, 70%, 55%)`,
+        label: 'Полный трек',
+      };
+      
+      const newAudioTrack: AudioTrackData = {
         id: `audio-${Date.now()}`,
         name: file.name.replace(/\.[^/.]+$/, ''),
         file,
         buffer: audioBuffer,
         volume: 100,
         muted: false,
-        startBeat: 0,
+        regions: [initialRegion],
       };
       
       setAudioTracks(prev => [...prev, newAudioTrack]);
@@ -892,15 +905,9 @@ const Creator = () => {
     toast.success('Аудиотрек удалён');
   }, []);
 
-  const updateAudioTrackVolume = useCallback((trackId: string, volume: number) => {
+  const updateAudioTrack = useCallback((updatedTrack: AudioTrackData) => {
     setAudioTracks(prev => prev.map(t => 
-      t.id === trackId ? { ...t, volume } : t
-    ));
-  }, []);
-
-  const toggleAudioTrackMute = useCallback((trackId: string) => {
-    setAudioTracks(prev => prev.map(t => 
-      t.id === trackId ? { ...t, muted: !t.muted } : t
+      t.id === updatedTrack.id ? updatedTrack : t
     ));
   }, []);
 
@@ -979,21 +986,24 @@ const Creator = () => {
         });
       });
       
-      // Add audio tracks to the mix
+      // Add audio tracks to the mix (with regions)
       audioTracks.forEach(track => {
         if (track.muted) return;
         
-        const source = offlineCtx.createBufferSource();
-        source.buffer = track.buffer;
-        
-        const trackGain = offlineCtx.createGain();
-        trackGain.gain.value = (track.volume / 100) * (volume / 100);
-        
-        source.connect(trackGain);
-        trackGain.connect(masterGain);
-        
-        const startTime = track.startBeat * beatDuration;
-        source.start(startTime);
+        track.regions.forEach(region => {
+          const source = offlineCtx.createBufferSource();
+          source.buffer = track.buffer;
+          
+          const trackGain = offlineCtx.createGain();
+          trackGain.gain.value = (track.volume / 100) * (volume / 100);
+          
+          source.connect(trackGain);
+          trackGain.connect(masterGain);
+          
+          const startTime = region.startBeat * beatDuration;
+          const duration = region.endTime - region.startTime;
+          source.start(startTime, region.startTime, duration);
+        });
       });
       
       const renderedBuffer = await offlineCtx.startRendering();
@@ -1201,52 +1211,21 @@ const Creator = () => {
                 </p>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {audioTracks.map(track => (
-                  <div 
+                  <AudioTrackEditor
                     key={track.id}
-                    className="flex items-center gap-3 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="w-8 h-8 rounded bg-gradient-to-br from-secondary/30 to-primary/30 flex items-center justify-center">
-                      <Music className="h-4 w-4 text-primary" />
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{track.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {(track.buffer.duration / 60).toFixed(0)}:{String(Math.floor(track.buffer.duration % 60)).padStart(2, '0')}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => toggleAudioTrackMute(track.id)}
-                        className={cn(
-                          'p-1.5 rounded transition-colors',
-                          track.muted 
-                            ? 'text-destructive bg-destructive/10' 
-                            : 'text-muted-foreground hover:text-foreground'
-                        )}
-                      >
-                        {track.muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                      </button>
-                      
-                      <Slider
-                        value={[track.volume]}
-                        onValueChange={([v]) => updateAudioTrackVolume(track.id, v)}
-                        max={100}
-                        step={1}
-                        className="w-20"
-                      />
-                      
-                      <button
-                        onClick={() => deleteAudioTrack(track.id)}
-                        className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
+                    track={track}
+                    bpm={bpm}
+                    totalBeats={totalBeats}
+                    currentBeat={currentBeat}
+                    isPlaying={isPlaying}
+                    audioContext={audioContextRef.current}
+                    masterGain={masterGainRef.current}
+                    onUpdate={updateAudioTrack}
+                    onDelete={() => deleteAudioTrack(track.id)}
+                    onPlayRegion={() => {}}
+                  />
                 ))}
                 
                 <button 
