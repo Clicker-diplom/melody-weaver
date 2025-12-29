@@ -10,6 +10,7 @@ import VolumeControl from '@/components/audio/VolumeControl';
 import ExportDialog from '@/components/audio/ExportDialog';
 import AudioTrackEditor, { type AudioTrackData, type AudioRegion } from '@/components/audio/AudioTrackEditor';
 import AIMelodyGenerator from '@/components/audio/AIMelodyGenerator';
+import BPMDetector from '@/components/audio/BPMDetector';
 import { cn } from '@/lib/utils';
 import type { AudioEffects } from '@/hooks/useAudioEngine';
 
@@ -1079,6 +1080,10 @@ const Creator = () => {
                   setSelectedTrack(newTracks[0].id);
                 }
               }}
+            />
+            <BPMDetector
+              audioBuffer={audioTracks[0]?.buffer || null}
+              onBPMDetected={(detectedBpm) => setBpm(detectedBpm)}
             />
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">BPM:</span>
