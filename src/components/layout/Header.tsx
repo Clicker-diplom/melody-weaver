@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { Music, Settings, HelpCircle, Save, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -9,14 +10,15 @@ interface HeaderProps {
   className?: string;
 }
 
-const Header = ({
+const Header = forwardRef<HTMLElement, HeaderProps>(({
   projectName = 'Новый проект',
   onSave,
   onOpen,
   className,
-}: HeaderProps) => {
+}, ref) => {
   return (
     <header
+      ref={ref}
       className={cn(
         'h-14 px-4 flex items-center justify-between',
         'bg-card/80 backdrop-blur-lg border-b border-border/50',
@@ -63,6 +65,8 @@ const Header = ({
       </div>
     </header>
   );
-};
+});
+
+Header.displayName = 'Header';
 
 export default Header;
