@@ -1,13 +1,14 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Upload, X, Music, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Header from '@/components/layout/Header';
 import EffectsPanel from '@/components/audio/EffectsPanel';
 import TransportControls from '@/components/audio/TransportControls';
 import VolumeControl from '@/components/audio/VolumeControl';
 import ExportDialog from '@/components/audio/ExportDialog';
+import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import type { AudioEffects } from '@/hooks/useAudioEngine';
 
@@ -29,6 +30,16 @@ interface Track {
   notes: Note[];
   volume: number;
   muted: boolean;
+}
+
+interface AudioTrack {
+  id: string;
+  name: string;
+  file: File;
+  buffer: AudioBuffer;
+  volume: number;
+  muted: boolean;
+  startBeat: number;
 }
 
 const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -98,6 +109,11 @@ const Creator = () => {
       muted: false,
     },
   ]);
+
+  const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const audioFileInputRef = useRef<HTMLInputElement>(null);
+  const audioSourcesRef = useRef<Map<string, AudioBufferSourceNode>>(new Map());
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
@@ -701,18 +717,57 @@ const Creator = () => {
   }, [createSynthVoice]);
 
   const handlePlay = useCallback(() => {
-    if (audioContextRef.current?.state === 'suspended') {
+    if (!audioContextRef.current || !masterGainRef.current) return;
+    
+    if (audioContextRef.current.state === 'suspended') {
       audioContextRef.current.resume();
     }
+    
+    // Start audio tracks
+    const beatDuration = 60 / bpm;
+    const startOffset = currentBeat * beatDuration;
+    
+    audioTracks.forEach(track => {
+      if (track.muted) return;
+      
+      const source = audioContextRef.current!.createBufferSource();
+      source.buffer = track.buffer;
+      
+      const gainNode = audioContextRef.current!.createGain();
+      gainNode.gain.value = track.volume / 100;
+      
+      source.connect(gainNode);
+      gainNode.connect(masterGainRef.current!);
+      
+      const trackOffset = track.startBeat * beatDuration;
+      const audioStartTime = Math.max(0, startOffset - trackOffset);
+      const scheduleDelay = Math.max(0, trackOffset - startOffset);
+      
+      source.start(audioContextRef.current!.currentTime + scheduleDelay, audioStartTime);
+      audioSourcesRef.current.set(track.id, source);
+    });
+    
     setIsPlaying(true);
     toast.success('Воспроизведение');
-  }, []);
+  }, [bpm, currentBeat, audioTracks]);
 
   const handlePause = useCallback(() => {
+    // Stop all audio track sources
+    audioSourcesRef.current.forEach((source, id) => {
+      try { source.stop(); } catch {}
+    });
+    audioSourcesRef.current.clear();
+    
     setIsPlaying(false);
   }, []);
 
   const handleStop = useCallback(() => {
+    // Stop all audio track sources
+    audioSourcesRef.current.forEach((source, id) => {
+      try { source.stop(); } catch {}
+    });
+    audioSourcesRef.current.clear();
+    
     setIsPlaying(false);
     setCurrentBeat(0);
   }, []);
@@ -781,6 +836,73 @@ const Creator = () => {
     }
     toast.success('Трек удалён');
   }, [tracks, selectedTrack]);
+
+  // Audio file handling
+  const handleAudioFileSelect = useCallback(async (file: File) => {
+    if (!audioContextRef.current) return;
+    
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+      
+      const newAudioTrack: AudioTrack = {
+        id: `audio-${Date.now()}`,
+        name: file.name.replace(/\.[^/.]+$/, ''),
+        file,
+        buffer: audioBuffer,
+        volume: 100,
+        muted: false,
+        startBeat: 0,
+      };
+      
+      setAudioTracks(prev => [...prev, newAudioTrack]);
+      toast.success(`Аудиофайл "${newAudioTrack.name}" добавлен`);
+    } catch (error) {
+      toast.error('Ошибка загрузки аудиофайла');
+      console.error('Error loading audio file:', error);
+    }
+  }, []);
+
+  const handleFileDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    
+    const file = e.dataTransfer.files[0];
+    if (file && /\.(mp3|wav|ogg|flac|m4a)$/i.test(file.name)) {
+      handleAudioFileSelect(file);
+    } else {
+      toast.error('Неподдерживаемый формат файла');
+    }
+  }, [handleAudioFileSelect]);
+
+  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleAudioFileSelect(file);
+    }
+  }, [handleAudioFileSelect]);
+
+  const deleteAudioTrack = useCallback((trackId: string) => {
+    const source = audioSourcesRef.current.get(trackId);
+    if (source) {
+      try { source.stop(); } catch {}
+      audioSourcesRef.current.delete(trackId);
+    }
+    setAudioTracks(prev => prev.filter(t => t.id !== trackId));
+    toast.success('Аудиотрек удалён');
+  }, []);
+
+  const updateAudioTrackVolume = useCallback((trackId: string, volume: number) => {
+    setAudioTracks(prev => prev.map(t => 
+      t.id === trackId ? { ...t, volume } : t
+    ));
+  }, []);
+
+  const toggleAudioTrackMute = useCallback((trackId: string) => {
+    setAudioTracks(prev => prev.map(t => 
+      t.id === trackId ? { ...t, muted: !t.muted } : t
+    ));
+  }, []);
 
   const handleExport = useCallback(async (format: 'wav' | 'mp3', quality: number) => {
     setIsExporting(true);
@@ -857,6 +979,23 @@ const Creator = () => {
         });
       });
       
+      // Add audio tracks to the mix
+      audioTracks.forEach(track => {
+        if (track.muted) return;
+        
+        const source = offlineCtx.createBufferSource();
+        source.buffer = track.buffer;
+        
+        const trackGain = offlineCtx.createGain();
+        trackGain.gain.value = (track.volume / 100) * (volume / 100);
+        
+        source.connect(trackGain);
+        trackGain.connect(masterGain);
+        
+        const startTime = track.startBeat * beatDuration;
+        source.start(startTime);
+      });
+      
       const renderedBuffer = await offlineCtx.startRendering();
       
       // Convert to WAV
@@ -875,7 +1014,7 @@ const Creator = () => {
     } finally {
       setIsExporting(false);
     }
-  }, [bpm, totalBeats, tracks, volume, effects, makeDistortionCurve]);
+  }, [bpm, totalBeats, tracks, volume, effects, makeDistortionCurve, audioTracks]);
 
   const currentTrack = tracks.find(t => t.id === selectedTrack);
 
@@ -1005,6 +1144,121 @@ const Creator = () => {
             <Plus className="h-4 w-4" />
             Трек
           </Button>
+        </div>
+
+        {/* Audio Tracks Upload Section */}
+        <div 
+          className="animate-slide-up" 
+          style={{ animationDelay: '0.25s' }}
+          onDragOver={(e) => { e.preventDefault(); setIsDraggingFile(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setIsDraggingFile(false); }}
+          onDrop={handleFileDrop}
+        >
+          <input
+            ref={audioFileInputRef}
+            type="file"
+            accept=".mp3,.wav,.ogg,.flac,.m4a"
+            onChange={handleFileInputChange}
+            className="hidden"
+          />
+          
+          <div className={cn(
+            'glass rounded-xl p-4 transition-all duration-300',
+            isDraggingFile && 'ring-2 ring-primary bg-primary/10'
+          )}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium flex items-center gap-2">
+                <Music className="h-4 w-4 text-primary" />
+                Аудиотреки (биты, минусовки)
+              </h3>
+              <Button 
+                variant="glass" 
+                size="sm" 
+                onClick={() => audioFileInputRef.current?.click()}
+                className="gap-1"
+              >
+                <Upload className="h-4 w-4" />
+                Загрузить
+              </Button>
+            </div>
+
+            {audioTracks.length === 0 ? (
+              <div 
+                className={cn(
+                  'border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer',
+                  isDraggingFile 
+                    ? 'border-primary bg-primary/5' 
+                    : 'border-border/50 hover:border-border'
+                )}
+                onClick={() => audioFileInputRef.current?.click()}
+              >
+                <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  Перетащите аудиофайл сюда или нажмите для выбора
+                </p>
+                <p className="text-xs text-muted-foreground/70 mt-1">
+                  MP3, WAV, OGG, FLAC, M4A
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {audioTracks.map(track => (
+                  <div 
+                    key={track.id}
+                    className="flex items-center gap-3 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="w-8 h-8 rounded bg-gradient-to-br from-secondary/30 to-primary/30 flex items-center justify-center">
+                      <Music className="h-4 w-4 text-primary" />
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{track.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {(track.buffer.duration / 60).toFixed(0)}:{String(Math.floor(track.buffer.duration % 60)).padStart(2, '0')}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggleAudioTrackMute(track.id)}
+                        className={cn(
+                          'p-1.5 rounded transition-colors',
+                          track.muted 
+                            ? 'text-destructive bg-destructive/10' 
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {track.muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                      </button>
+                      
+                      <Slider
+                        value={[track.volume]}
+                        onValueChange={([v]) => updateAudioTrackVolume(track.id, v)}
+                        max={100}
+                        step={1}
+                        className="w-20"
+                      />
+                      
+                      <button
+                        onClick={() => deleteAudioTrack(track.id)}
+                        className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                
+                <button 
+                  onClick={() => audioFileInputRef.current?.click()}
+                  className="w-full p-2 border border-dashed border-border/50 rounded-lg text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-1"
+                >
+                  <Plus className="h-4 w-4" />
+                  Добавить ещё
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Piano Roll */}
