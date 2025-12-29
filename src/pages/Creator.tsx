@@ -154,6 +154,7 @@ const Creator = () => {
     
     // Create nodes
     masterGainRef.current = ctx.createGain();
+    masterGainRef.current.gain.value = 0.75; // Initial volume 75%
     dryGainRef.current = ctx.createGain();
     
     // Delay
