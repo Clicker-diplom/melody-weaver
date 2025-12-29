@@ -88,10 +88,10 @@ const AudioTrackEditor = ({
     const { width, height } = canvas;
     ctx.clearRect(0, 0, width, height);
     
-    // Background gradient
+    // Background gradient - using actual colors
     const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
-    bgGradient.addColorStop(0, 'hsla(var(--muted), 0.4)');
-    bgGradient.addColorStop(1, 'hsla(var(--muted), 0.2)');
+    bgGradient.addColorStop(0, 'rgba(30, 35, 45, 0.6)');
+    bgGradient.addColorStop(1, 'rgba(20, 25, 35, 0.4)');
     ctx.fillStyle = bgGradient;
     ctx.fillRect(0, 0, width, height);
     
@@ -99,11 +99,11 @@ const AudioTrackEditor = ({
     const channelData = track.buffer.getChannelData(0);
     const step = Math.ceil(channelData.length / width);
     
-    // Waveform gradient
+    // Waveform gradient - cyan primary color
     const waveGradient = ctx.createLinearGradient(0, 0, 0, height);
-    waveGradient.addColorStop(0, 'hsl(var(--primary))');
-    waveGradient.addColorStop(0.5, 'hsl(var(--primary) / 0.8)');
-    waveGradient.addColorStop(1, 'hsl(var(--primary))');
+    waveGradient.addColorStop(0, 'hsl(187, 100%, 50%)');
+    waveGradient.addColorStop(0.5, 'hsla(187, 100%, 50%, 0.8)');
+    waveGradient.addColorStop(1, 'hsl(187, 100%, 50%)');
     
     ctx.beginPath();
     ctx.strokeStyle = waveGradient;
@@ -148,7 +148,7 @@ const AudioTrackEditor = ({
       
       // Region label
       if (endX - startX > 40) {
-        ctx.fillStyle = 'hsl(var(--foreground))';
+        ctx.fillStyle = '#e0e0e0';
         ctx.font = 'bold 10px sans-serif';
         ctx.fillText(`${formatTime(region.startTime)}`, startX + 4, 12);
       }
@@ -159,16 +159,16 @@ const AudioTrackEditor = ({
       const startX = Math.min(selectionStart, selectionEnd);
       const endX = Math.max(selectionStart, selectionEnd);
       
-      // Selection fill
+      // Selection fill - cyan with transparency
       const selGradient = ctx.createLinearGradient(startX, 0, endX, 0);
-      selGradient.addColorStop(0, 'hsl(var(--primary) / 0.2)');
-      selGradient.addColorStop(0.5, 'hsl(var(--primary) / 0.4)');
-      selGradient.addColorStop(1, 'hsl(var(--primary) / 0.2)');
+      selGradient.addColorStop(0, 'hsla(187, 100%, 50%, 0.2)');
+      selGradient.addColorStop(0.5, 'hsla(187, 100%, 50%, 0.4)');
+      selGradient.addColorStop(1, 'hsla(187, 100%, 50%, 0.2)');
       ctx.fillStyle = selGradient;
       ctx.fillRect(startX, 0, endX - startX, height);
       
       // Selection border
-      ctx.strokeStyle = 'hsl(var(--primary))';
+      ctx.strokeStyle = 'hsl(187, 100%, 50%)';
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 4]);
       ctx.strokeRect(startX, 0, endX - startX, height);
@@ -178,7 +178,7 @@ const AudioTrackEditor = ({
       const selStartTime = (startX / width) * totalDuration;
       const selEndTime = (endX / width) * totalDuration;
       
-      ctx.fillStyle = 'hsl(var(--primary))';
+      ctx.fillStyle = 'hsl(187, 100%, 50%)';
       ctx.font = 'bold 11px monospace';
       ctx.fillText(formatTime(selStartTime), startX + 4, height - 6);
       ctx.fillText(formatTime(selEndTime), endX - 30, height - 6);
@@ -188,7 +188,7 @@ const AudioTrackEditor = ({
     const markerCount = Math.min(10, Math.floor(totalDuration));
     const markerInterval = totalDuration / markerCount;
     
-    ctx.fillStyle = 'hsl(var(--muted-foreground) / 0.7)';
+    ctx.fillStyle = 'rgba(160, 160, 180, 0.7)';
     ctx.font = '9px monospace';
     
     for (let t = markerInterval; t < totalDuration; t += markerInterval) {
@@ -208,10 +208,10 @@ const AudioTrackEditor = ({
     const { width, height } = canvas;
     ctx.clearRect(0, 0, width, height);
     
-    // Background
+    // Background - using actual colors
     const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
-    bgGradient.addColorStop(0, 'hsla(var(--background), 0.8)');
-    bgGradient.addColorStop(1, 'hsla(var(--muted), 0.3)');
+    bgGradient.addColorStop(0, 'rgba(15, 18, 25, 0.9)');
+    bgGradient.addColorStop(1, 'rgba(25, 30, 40, 0.5)');
     ctx.fillStyle = bgGradient;
     ctx.fillRect(0, 0, width, height);
     
@@ -223,8 +223,8 @@ const AudioTrackEditor = ({
       const isMeasure = i % 4 === 0;
       
       ctx.strokeStyle = isMeasure 
-        ? 'hsl(var(--border))' 
-        : 'hsl(var(--border) / 0.2)';
+        ? 'rgba(100, 110, 130, 0.6)' 
+        : 'rgba(80, 90, 110, 0.2)';
       ctx.lineWidth = isMeasure ? 1.5 : 0.5;
       ctx.beginPath();
       ctx.moveTo(x, 0);
@@ -233,7 +233,7 @@ const AudioTrackEditor = ({
       
       // Measure numbers
       if (isMeasure && i < totalBeats) {
-        ctx.fillStyle = 'hsl(var(--muted-foreground))';
+        ctx.fillStyle = 'rgba(160, 165, 180, 0.9)';
         ctx.font = 'bold 10px sans-serif';
         ctx.fillText(`${i / 4 + 1}`, x + 3, 12);
       }
@@ -280,12 +280,12 @@ const AudioTrackEditor = ({
       ctx.shadowBlur = 0;
       
       // Border
-      ctx.strokeStyle = isSelected ? 'hsl(var(--foreground))' : region.color;
+      ctx.strokeStyle = isSelected ? '#e0e0e0' : region.color;
       ctx.lineWidth = isSelected ? 2 : 1;
       ctx.stroke();
       
       // Region number badge
-      ctx.fillStyle = 'hsl(var(--background))';
+      ctx.fillStyle = '#0f1219';
       ctx.beginPath();
       ctx.arc(startX + 12, y + 12, 8, 0, Math.PI * 2);
       ctx.fill();
@@ -301,10 +301,10 @@ const AudioTrackEditor = ({
       const playheadX = (currentBeat / totalBeats) * width;
       
       // Playhead glow
-      ctx.shadowColor = 'hsl(var(--primary))';
+      ctx.shadowColor = 'hsl(187, 100%, 50%)';
       ctx.shadowBlur = 8;
       
-      ctx.strokeStyle = 'hsl(var(--primary))';
+      ctx.strokeStyle = 'hsl(187, 100%, 50%)';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(playheadX, 0);
@@ -312,7 +312,7 @@ const AudioTrackEditor = ({
       ctx.stroke();
       
       // Playhead triangle
-      ctx.fillStyle = 'hsl(var(--primary))';
+      ctx.fillStyle = 'hsl(187, 100%, 50%)';
       ctx.beginPath();
       ctx.moveTo(playheadX - 6, 0);
       ctx.lineTo(playheadX + 6, 0);
