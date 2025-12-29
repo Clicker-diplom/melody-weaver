@@ -9,6 +9,7 @@ import TransportControls from '@/components/audio/TransportControls';
 import VolumeControl from '@/components/audio/VolumeControl';
 import ExportDialog from '@/components/audio/ExportDialog';
 import AudioTrackEditor, { type AudioTrackData, type AudioRegion } from '@/components/audio/AudioTrackEditor';
+import AIMelodyGenerator from '@/components/audio/AIMelodyGenerator';
 import { cn } from '@/lib/utils';
 import type { AudioEffects } from '@/hooks/useAudioEngine';
 
@@ -1056,6 +1057,29 @@ const Creator = () => {
           </div>
 
           <div className="flex items-center gap-4">
+            <AIMelodyGenerator 
+              onGenerate={(generatedTracks) => {
+                const newTracks = generatedTracks.map((gt, idx) => ({
+                  id: `ai-track-${Date.now()}-${idx}`,
+                  name: gt.name,
+                  color: gt.color,
+                  synth: gt.synth as SynthType,
+                  notes: gt.notes.map((n, nIdx) => ({
+                    id: `ai-note-${Date.now()}-${idx}-${nIdx}`,
+                    pitch: n.pitch,
+                    octave: n.octave,
+                    start: n.start,
+                    duration: n.duration,
+                  })),
+                  volume: 100,
+                  muted: false,
+                }));
+                setTracks(prev => [...prev, ...newTracks]);
+                if (newTracks.length > 0) {
+                  setSelectedTrack(newTracks[0].id);
+                }
+              }}
+            />
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">BPM:</span>
               <input

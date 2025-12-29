@@ -1,1 +1,4 @@
 project_id = "pjvmpegopswntyidyola"
+
+[functions.generate-melody]
+verify_jwt = false
