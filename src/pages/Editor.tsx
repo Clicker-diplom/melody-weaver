@@ -13,6 +13,7 @@ import FileUpload from '@/components/audio/FileUpload';
 import EditorToolbar from '@/components/audio/EditorToolbar';
 import ExportDialog from '@/components/audio/ExportDialog';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
+import { useProjects } from '@/hooks/useProjects';
 
 const Editor = () => {
   const navigate = useNavigate();
@@ -30,6 +31,8 @@ const Editor = () => {
     label: string;
   }>>([]);
 
+  const { addProject } = useProjects();
+
   const audioEngine = useAudioEngine({
     onEnded: () => {
       toast.info('Воспроизведение завершено');
@@ -43,6 +46,7 @@ const Editor = () => {
       setFileName(file.name);
       setRegions([]);
       setSelectedRegion(null);
+      addProject({ name: file.name, type: 'uploaded', file_size: file.size });
       toast.success(`Загружен: ${file.name}`);
     } catch {
       toast.error('Ошибка загрузки файла');
@@ -156,12 +160,14 @@ const Editor = () => {
     try {
       const blob = await audioEngine.exportAudio(format);
       if (blob) {
+        const exportName = `${fileName.replace(/\.[^/.]+$/, '')}_edited.${format}`;
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${fileName.replace(/\.[^/.]+$/, '')}_edited.${format}`;
+        a.download = exportName;
         a.click();
         URL.revokeObjectURL(url);
+        addProject({ name: exportName, type: 'exported', file_size: blob.size, duration: audioEngine.duration });
         toast.success(`Файл экспортирован как ${format.toUpperCase()}`);
       }
     } catch {
