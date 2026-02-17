@@ -1,7 +1,8 @@
 import { forwardRef } from 'react';
-import { Music, Settings, HelpCircle, Save, FolderOpen } from 'lucide-react';
+import { Music, Settings, HelpCircle, Save, FolderOpen, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 
 interface HeaderProps {
   projectName?: string;
@@ -16,6 +17,7 @@ const Header = forwardRef<HTMLElement, HeaderProps>(({
   onOpen,
   className,
 }, ref) => {
+  const { signOut } = useAuth();
   return (
     <header
       ref={ref}
@@ -61,6 +63,9 @@ const Header = forwardRef<HTMLElement, HeaderProps>(({
         </Button>
         <Button variant="ghost" size="icon-sm">
           <Settings className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon-sm" onClick={signOut} title="Выйти">
+          <LogOut className="h-4 w-4" />
         </Button>
       </div>
     </header>
