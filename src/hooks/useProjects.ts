@@ -8,6 +8,7 @@ export interface Project {
   type: 'uploaded' | 'edited' | 'exported';
   file_size: number | null;
   duration: number | null;
+  file_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -35,13 +36,39 @@ export function useProjects() {
     fetchProjects();
   }, [fetchProjects]);
 
+  const uploadFileToStorage = useCallback(async (file: Blob, fileName: string): Promise<string | null> => {
+    if (!user) return null;
+    const uniqueName = `${user.id}/${Date.now()}_${fileName}`;
+    const { error } = await supabase.storage
+      .from('audio-files')
+      .upload(uniqueName, file, { contentType: file.type || 'audio/wav', upsert: false });
+
+    if (error) {
+      console.error('Storage upload error:', error);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('audio-files')
+      .getPublicUrl(uniqueName);
+
+    return urlData.publicUrl;
+  }, [user]);
+
   const addProject = useCallback(async (project: {
     name: string;
     type: 'uploaded' | 'edited' | 'exported';
     file_size?: number;
     duration?: number;
+    file?: Blob;
   }) => {
     if (!user) return null;
+
+    let fileUrl: string | null = null;
+    if (project.file) {
+      fileUrl = await uploadFileToStorage(project.file, project.name);
+    }
+
     const { data, error } = await supabase
       .from('projects')
       .insert({
@@ -50,6 +77,7 @@ export function useProjects() {
         type: project.type,
         file_size: project.file_size ?? null,
         duration: project.duration ?? null,
+        file_url: fileUrl,
       })
       .select()
       .single();
@@ -59,7 +87,7 @@ export function useProjects() {
       return data;
     }
     return null;
-  }, [user]);
+  }, [user, uploadFileToStorage]);
 
   const deleteProject = useCallback(async (id: string) => {
     const { error } = await supabase.from('projects').delete().eq('id', id);
