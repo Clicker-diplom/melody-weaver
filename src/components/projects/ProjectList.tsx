@@ -1,4 +1,4 @@
-import { Upload, FileAudio, Download, Trash2, Clock, HardDrive } from 'lucide-react';
+import { Upload, FileAudio, Download, Trash2, Clock, HardDrive, Link } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Project } from '@/hooks/useProjects';
@@ -105,14 +105,29 @@ const ProjectList = ({ projects, loading, onDelete }: ProjectListProps) => {
               {formatDate(project.created_at)}
             </span>
 
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => onDelete(project.id)}
-              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              {project.file_url && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  asChild
+                  className="text-muted-foreground hover:text-primary transition-all"
+                >
+                  <a href={project.file_url} target="_blank" rel="noopener noreferrer" download>
+                    <Link className="h-4 w-4" />
+                  </a>
+                </Button>
+              )}
+
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => onDelete(project.id)}
+                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         );
       })}

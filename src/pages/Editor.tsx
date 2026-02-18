@@ -46,7 +46,7 @@ const Editor = () => {
       setFileName(file.name);
       setRegions([]);
       setSelectedRegion(null);
-      addProject({ name: file.name, type: 'uploaded', file_size: file.size });
+      addProject({ name: file.name, type: 'uploaded', file_size: file.size, file });
       toast.success(`Загружен: ${file.name}`);
     } catch {
       toast.error('Ошибка загрузки файла');
@@ -167,7 +167,7 @@ const Editor = () => {
         a.download = exportName;
         a.click();
         URL.revokeObjectURL(url);
-        addProject({ name: exportName, type: 'exported', file_size: blob.size, duration: audioEngine.duration });
+        addProject({ name: exportName, type: 'exported', file_size: blob.size, duration: audioEngine.duration, file: blob });
         toast.success(`Файл экспортирован как ${format.toUpperCase()}`);
       }
     } catch {
