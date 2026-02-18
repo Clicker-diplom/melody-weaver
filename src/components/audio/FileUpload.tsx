@@ -1,12 +1,66 @@
 import { useState, useRef } from 'react';
-import { Upload, Music, File, X } from 'lucide-react';
+import { Upload, Music, X, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+
+const ALLOWED_MIME_TYPES = [
+  'audio/wav', 'audio/x-wav',
+  'audio/mpeg', 'audio/mp3',
+  'audio/flac',
+  'audio/ogg', 'audio/vorbis',
+  'audio/aac',
+  'audio/webm',
+];
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
   acceptedFormats?: string[];
   className?: string;
+}
+
+interface ValidationError {
+  message: string;
+  detail: string;
+}
+
+function validateFile(file: File, acceptedFormats: string[]): ValidationError | null {
+  // Check extension
+  const ext = '.' + (file.name.split('.').pop()?.toLowerCase() ?? '');
+  if (!acceptedFormats.includes(ext)) {
+    return {
+      message: 'Неподдерживаемый формат файла',
+      detail: `Файл "${file.name}" имеет формат ${ext}. Допустимые форматы: ${acceptedFormats.join(', ')}`,
+    };
+  }
+
+  // Check MIME type (if browser provides it)
+  if (file.type && !ALLOWED_MIME_TYPES.some(m => file.type.startsWith(m.split('/')[0]))) {
+    return {
+      message: 'Файл не является аудио',
+      detail: `Тип файла "${file.type}" не соответствует аудиоформату.`,
+    };
+  }
+
+  // Check size
+  if (file.size > MAX_FILE_SIZE) {
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+    return {
+      message: 'Файл слишком большой',
+      detail: `Размер файла ${sizeMB} МБ превышает лимит в ${MAX_FILE_SIZE / (1024 * 1024)} МБ.`,
+    };
+  }
+
+  // Check empty file
+  if (file.size === 0) {
+    return {
+      message: 'Файл пустой',
+      detail: 'Загруженный файл не содержит данных.',
+    };
+  }
+
+  return null;
 }
 
 const FileUpload = ({
@@ -16,6 +70,7 @@ const FileUpload = ({
 }: FileUploadProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [error, setError] = useState<ValidationError | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -28,28 +83,28 @@ const FileUpload = ({
     setIsDragging(false);
   };
 
+  const processFile = (file: File) => {
+    setError(null);
+    const validationError = validateFile(file, acceptedFormats);
+    if (validationError) {
+      setError(validationError);
+      setSelectedFile(null);
+      return;
+    }
+    setSelectedFile(file);
+    onFileSelect(file);
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    
     const file = e.dataTransfer.files[0];
-    if (file && isValidFormat(file)) {
-      setSelectedFile(file);
-      onFileSelect(file);
-    }
+    if (file) processFile(file);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      onFileSelect(file);
-    }
-  };
-
-  const isValidFormat = (file: File): boolean => {
-    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-    return acceptedFormats.includes(ext);
+    if (file) processFile(file);
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -60,6 +115,7 @@ const FileUpload = ({
 
   const clearFile = () => {
     setSelectedFile(null);
+    setError(null);
     if (inputRef.current) {
       inputRef.current.value = '';
     }
@@ -76,6 +132,27 @@ const FileUpload = ({
         id="audio-upload"
       />
 
+      {/* Validation Error */}
+      {error && (
+        <div className="mb-4 p-4 rounded-xl border border-destructive/50 bg-destructive/10 flex items-start gap-3 animate-slide-up">
+          <div className="w-10 h-10 rounded-lg bg-destructive/20 flex items-center justify-center shrink-0">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-destructive">{error.message}</p>
+            <p className="text-sm text-muted-foreground mt-0.5">{error.detail}</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setError(null)}
+            className="text-muted-foreground hover:text-destructive shrink-0"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
       {!selectedFile ? (
         <label
           htmlFor="audio-upload"
@@ -86,9 +163,11 @@ const FileUpload = ({
             'flex flex-col items-center justify-center gap-4 p-8',
             'rounded-2xl border-2 border-dashed cursor-pointer',
             'transition-all duration-300',
-            isDragging
-              ? 'border-primary bg-primary/10 glow-cyan'
-              : 'border-border/50 hover:border-primary/50 hover:bg-muted/20'
+            error
+              ? 'border-destructive/50 hover:border-destructive'
+              : isDragging
+                ? 'border-primary bg-primary/10 glow-cyan'
+                : 'border-border/50 hover:border-primary/50 hover:bg-muted/20'
           )}
         >
           <div
@@ -107,7 +186,7 @@ const FileUpload = ({
               Перетащите аудиофайл сюда
             </p>
             <p className="text-sm text-muted-foreground">
-              или нажмите для выбора
+              или нажмите для выбора • макс. {MAX_FILE_SIZE / (1024 * 1024)} МБ
             </p>
           </div>
 
