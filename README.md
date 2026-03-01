@@ -1,73 +1,106 @@
-# Welcome to your Lovable project
+# 🎵 SoundStorm — Цифровая звуковая рабочая станция (DAW)
 
-## Project info
+## 📌 Цель проекта
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+SoundStorm — это веб-приложение цифровой звуковой рабочей станции (DAW), разработанное в рамках практико-ориентированной дипломной работы бакалавра. Система предназначена для обработки, анализа и создания аудиоконтента непосредственно в браузере, без необходимости установки дополнительного программного обеспечения.
 
-## How can I edit this code?
+Проект демонстрирует возможности современных веб-технологий в области цифровой обработки сигналов (DSP), включая:
+- Редактирование существующих аудиофайлов (обрезка, эффекты, нормализация)
+- Создание музыки с нуля с помощью встроенных синтезаторов
+- Автоматическое определение BPM с использованием алгоритмов машинного обучения (спектральный поток, автокорреляция)
 
-There are several ways of editing your application.
+## 🛠 Технологии и инструменты
 
-**Use Lovable**
+| Категория | Технология |
+|---|---|
+| Фреймворк | React 18 |
+| Язык | TypeScript |
+| Сборщик | Vite |
+| Стилизация | Tailwind CSS |
+| UI-компоненты | shadcn/ui (Radix UI) |
+| Аудио-движок | Web Audio API (клиентская обработка DSP) |
+| Маршрутизация | React Router v6 |
+| Состояние сервера | TanStack React Query |
+| Бэкенд | Lovable Cloud (аутентификация, база данных, хранилище) |
+| Анимации | Framer Motion (через Tailwind CSS Animate) |
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## 🚀 Инструкции по запуску
 
-Changes made via Lovable will be committed automatically to this repo.
+### Предварительные требования
+- Node.js (версия 18 или выше)
+- npm или yarn
 
-**Use your preferred IDE**
+### Установка и запуск
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+```bash
+# 1. Клонируйте репозиторий
+git clone <URL_ВАШЕГО_РЕПОЗИТОРИЯ>
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+# 2. Перейдите в папку проекта
+cd <ИМЯ_ПРОЕКТА>
 
-Follow these steps:
+# 3. Установите зависимости
+npm install
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# 4. Запустите сервер разработки
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Приложение будет доступно по адресу: `http://localhost:8080`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Сборка для продакшена
 
-**Use GitHub Codespaces**
+```bash
+npm run build
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 📁 Структура приложения
 
-## What technologies are used for this project?
+```
+src/
+├── components/
+│   ├── audio/                  # Аудио-компоненты
+│   │   ├── AudioTrackEditor.tsx    # Редактор аудиодорожек
+│   │   ├── BPMDetector.tsx         # Детектор BPM (машинное обучение)
+│   │   ├── EditorToolbar.tsx       # Панель инструментов редактора
+│   │   ├── EffectKnob.tsx          # Регулятор эффектов
+│   │   ├── EffectsPanel.tsx        # Панель аудиоэффектов
+│   │   ├── ExportDialog.tsx        # Диалог экспорта
+│   │   ├── FileUpload.tsx          # Загрузка аудиофайлов
+│   │   ├── Timeline.tsx            # Временная шкала
+│   │   ├── TransportControls.tsx   # Элементы управления воспроизведением
+│   │   ├── VolumeControl.tsx       # Регулятор громкости
+│   │   └── WaveformDisplay.tsx     # Отображение волновой формы
+│   ├── layout/
+│   │   └── Header.tsx              # Шапка приложения
+│   ├── projects/
+│   │   └── ProjectList.tsx         # Список проектов пользователя
+│   └── ui/                         # UI-компоненты (shadcn/ui)
+├── hooks/
+│   ├── useAudioEngine.ts           # Хук аудио-движка (Web Audio API)
+│   ├── useAuth.ts                  # Хук аутентификации
+│   ├── useProjects.ts              # Хук управления проектами
+│   └── use-mobile.tsx              # Хук определения мобильного устройства
+├── lib/
+│   ├── bpmDetection.ts             # Алгоритмы определения BPM (DSP)
+│   └── utils.ts                    # Утилиты
+├── pages/
+│   ├── Auth.tsx                    # Страница авторизации
+│   ├── Creator.tsx                 # Режим «Создание с нуля»
+│   ├── Editor.tsx                  # Режим «Редактор»
+│   ├── Index.tsx                   # Главная страница
+│   └── NotFound.tsx                # Страница 404
+├── integrations/
+│   └── supabase/                   # Интеграция с бэкендом
+├── App.tsx                         # Корневой компонент с маршрутизацией
+├── main.tsx                        # Точка входа
+└── index.css                       # Глобальные стили и дизайн-токены
+```
 
-This project is built with:
+## 🧠 Ключевые алгоритмы
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+### Определение BPM (машинное обучение)
+- **Спектральный поток (Spectral Flux)** — обнаружение онсетов через анализ изменений в спектре сигнала
+- **Автокорреляция** — выявление периодичности ритмических паттернов в диапазоне 60–200 BPM
+- **Оконное преобразование Ханна + DFT** — спектральный анализ аудиосигнала
+- **RMS-энергия** — анализ ритмических паттернов по амплитуде сигнала
