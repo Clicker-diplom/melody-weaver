@@ -12,6 +12,7 @@ import Timeline from '@/components/audio/Timeline';
 import FileUpload from '@/components/audio/FileUpload';
 import EditorToolbar from '@/components/audio/EditorToolbar';
 import ExportDialog from '@/components/audio/ExportDialog';
+import CustomAudioEffects from '@/components/audio/CustomAudioEffects';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { useProjects } from '@/hooks/useProjects';
 
@@ -339,6 +340,15 @@ const Editor = () => {
               <EffectsPanel 
                 effects={audioEngine.effects}
                 onEffectsChange={audioEngine.setEffects}
+              />
+            </div>
+
+            {/* Custom Audio Effects */}
+            <div className="animate-slide-up" style={{ animationDelay: '0.35s' }}>
+              <CustomAudioEffects
+                audioContext={audioEngine.audioContext}
+                masterGain={audioEngine.masterGain}
+                sourceNode={audioEngine.effectSourceNode}
               />
             </div>
 

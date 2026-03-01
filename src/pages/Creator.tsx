@@ -5,6 +5,7 @@ import { ArrowLeft, Plus, Trash2, Upload, Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Header from '@/components/layout/Header';
 import EffectsPanel from '@/components/audio/EffectsPanel';
+import CustomAudioEffects from '@/components/audio/CustomAudioEffects';
 import TransportControls from '@/components/audio/TransportControls';
 import VolumeControl from '@/components/audio/VolumeControl';
 import ExportDialog from '@/components/audio/ExportDialog';
@@ -1347,6 +1348,15 @@ const Creator = () => {
         {/* Effects Panel */}
         <div className="animate-slide-up" style={{ animationDelay: '0.4s' }}>
           <EffectsPanel effects={effects} onEffectsChange={setEffects} />
+        </div>
+
+        {/* Custom Audio Effects */}
+        <div className="animate-slide-up" style={{ animationDelay: '0.45s' }}>
+          <CustomAudioEffects
+            audioContext={audioContextRef.current}
+            masterGain={masterGainRef.current}
+            sourceNode={distortionNodeRef.current}
+          />
         </div>
 
         {/* Tips */}
