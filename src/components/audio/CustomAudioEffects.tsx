@@ -87,6 +87,31 @@ const CustomAudioEffects = ({
     });
   }, [customEffects]);
 
+  // Trim buffer to max duration to prevent memory crashes with ConvolverNode
+  const trimBuffer = useCallback((ctx: AudioContext, buffer: AudioBuffer, maxSeconds: number): AudioBuffer => {
+    const maxSamples = Math.min(buffer.length, Math.floor(maxSeconds * buffer.sampleRate));
+    if (maxSamples >= buffer.length) return buffer;
+
+    const trimmed = ctx.createBuffer(buffer.numberOfChannels, maxSamples, buffer.sampleRate);
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+      const src = buffer.getChannelData(ch);
+      const dst = trimmed.getChannelData(ch);
+      // Apply fade-out in last 0.05s to avoid clicks
+      const fadeStart = Math.max(0, maxSamples - Math.floor(0.05 * buffer.sampleRate));
+      for (let i = 0; i < maxSamples; i++) {
+        if (i >= fadeStart) {
+          const fade = 1 - (i - fadeStart) / (maxSamples - fadeStart);
+          dst[i] = src[i] * fade;
+        } else {
+          dst[i] = src[i];
+        }
+      }
+    }
+    return trimmed;
+  }, []);
+
+  const MAX_IR_SECONDS = 10;
+
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !audioContext) return;
@@ -105,7 +130,11 @@ const CustomAudioEffects = ({
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      const decoded = await audioContext.decodeAudioData(arrayBuffer);
+
+      // Trim long files to prevent ConvolverNode memory crash
+      const audioBuffer = trimBuffer(audioContext, decoded, MAX_IR_SECONDS);
+      const wasTrimmed = decoded.length !== audioBuffer.length;
 
       const newEffect: CustomEffect = {
         id: `custom-fx-${Date.now()}`,
@@ -116,8 +145,13 @@ const CustomAudioEffects = ({
       };
 
       setCustomEffects(prev => [...prev, newEffect]);
-      toast.success(`Эффект "${newEffect.name}" добавлен`);
-    } catch {
+      toast.success(
+        wasTrimmed
+          ? `Эффект "${newEffect.name}" добавлен (обрезан до ${MAX_IR_SECONDS}с для стабильности)`
+          : `Эффект "${newEffect.name}" добавлен`
+      );
+    } catch (err) {
+      console.error('Audio decode error:', err);
       toast.error('Ошибка декодирования аудиофайла');
     }
 
@@ -125,7 +159,7 @@ const CustomAudioEffects = ({
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  }, [audioContext]);
+  }, [audioContext, trimBuffer]);
 
   const toggleEffect = useCallback((id: string) => {
     setCustomEffects(prev =>
