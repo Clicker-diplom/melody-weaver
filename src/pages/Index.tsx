@@ -1,6 +1,6 @@
 import { forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wand2, FileAudio, ArrowRight } from 'lucide-react';
+import { Wand2, FileAudio, ArrowRight, CheckCircle2 } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import ProjectList from '@/components/projects/ProjectList';
 import { useProjects } from '@/hooks/useProjects';
