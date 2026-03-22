@@ -1,6 +1,6 @@
 import { forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wand2, FileAudio, ArrowRight } from 'lucide-react';
+import { Wand2, FileAudio, ArrowRight, CheckCircle2 } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import ProjectList from '@/components/projects/ProjectList';
 import { useProjects } from '@/hooks/useProjects';
@@ -77,8 +77,47 @@ const Index = forwardRef<HTMLDivElement>((_, ref) => {
           </div>
         </div>
 
-        {/* Project History */}
+        {/* Выполненные задачи */}
         <div className="mt-16 animate-slide-up" style={{ animationDelay: '0.4s' }}>
+          <h2 className="text-2xl font-bold mb-6">Выполненные задачи проекта</h2>
+          <div className="glass rounded-3xl border border-border/50 p-8 space-y-4">
+            {[
+              { title: 'Проектирование архитектуры веб-приложения SoundStorm', done: true },
+              { title: 'Реализация ключевых модулей:', done: true, sub: true },
+              { title: 'AuthService — регистрация, авторизация и защита данных пользователей', done: true, indent: true },
+              { title: 'AudioEditorService — загрузка, редактирование и обработка аудиофайлов', done: true, indent: true },
+              { title: 'BPMDetectionService — автоматическое определение темпа (BPM) с использованием алгоритмов машинного обучения (Spectral Flux, Autocorrelation, DFT)', done: true, indent: true },
+              { title: 'AudioCreatorService — создание аудио с нуля с помощью осцилляторов и синтезаторов', done: true, indent: true },
+              { title: 'EffectsService — применение аудиоэффектов (реверберация, дисторшн, фильтры, задержка)', done: true, indent: true },
+              { title: 'CustomEffectsService — загрузка пользовательских аудиоэффектов (импульсных откликов) и наложение на аудио', done: true, indent: true },
+              { title: 'Разработка веб-интерфейса с визуализацией волновой формы и таймлайном', done: true },
+              { title: 'Настройка интеграции между модулями (аудиодвижок, эффекты, экспорт)', done: true },
+              { title: 'Реализация экспорта в форматы WAV, MP3, OGG, FLAC', done: true },
+              { title: 'Развёртывание системы и проведение тестирования', done: true },
+            ].map((task, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'flex items-start gap-3 py-2',
+                  task.indent && 'ml-8',
+                  task.sub && 'mt-2'
+                )}
+              >
+                <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <span className={cn(
+                  'text-foreground',
+                  task.sub ? 'font-semibold' : 'text-muted-foreground',
+                  task.indent && 'text-sm'
+                )}>
+                  {task.title}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Project History */}
+        <div className="mt-16 animate-slide-up" style={{ animationDelay: '0.6s' }}>
           <h2 className="text-2xl font-bold mb-6">История проектов</h2>
           <ProjectList
             projects={projects}
