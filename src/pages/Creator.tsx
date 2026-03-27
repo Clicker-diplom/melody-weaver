@@ -119,7 +119,7 @@ const Creator = () => {
   const convolverNodeRef = useRef<ConvolverNode | null>(null);
   const reverbGainRef = useRef<GainNode | null>(null);
   const dryGainRef = useRef<GainNode | null>(null);
-  const playIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const playIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Create distortion curve
   const makeDistortionCurve = useCallback((amount: number) => {
