@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { useSettings } from '@/contexts/SettingsContext';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -33,15 +34,9 @@ const Header = forwardRef<HTMLElement, HeaderProps>(({
 }, ref) => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
+  const { settings, updateSetting } = useSettings();
   const [showHelp, setShowHelp] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-
-  // Settings state
-  const [darkTheme, setDarkTheme] = useState(true);
-  const [autoSave, setAutoSave] = useState(false);
-  const [masterVolume, setMasterVolume] = useState(80);
-  const [bufferSize, setBufferSize] = useState('2048');
-  const [defaultFormat, setDefaultFormat] = useState('wav');
 
   const handleSave = () => {
     if (onSave) {
@@ -129,15 +124,15 @@ const Header = forwardRef<HTMLElement, HeaderProps>(({
             {/* Theme Toggle */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {darkTheme ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                {settings.darkTheme ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
                 <Label htmlFor="theme-toggle" className="text-sm font-medium">
                   Темная тема
                 </Label>
               </div>
               <Switch
                 id="theme-toggle"
-                checked={darkTheme}
-                onCheckedChange={setDarkTheme}
+                checked={settings.darkTheme}
+                onCheckedChange={(v) => updateSetting('darkTheme', v)}
               />
             </div>
 
@@ -151,8 +146,11 @@ const Header = forwardRef<HTMLElement, HeaderProps>(({
               </div>
               <Switch
                 id="autosave-toggle"
-                checked={autoSave}
-                onCheckedChange={setAutoSave}
+                checked={settings.autoSave}
+                onCheckedChange={(v) => {
+                  updateSetting('autoSave', v);
+                  toast.success(v ? 'Автосохранение включено' : 'Автосохранение выключено');
+                }}
               />
             </div>
 
@@ -160,11 +158,11 @@ const Header = forwardRef<HTMLElement, HeaderProps>(({
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Volume2 className="h-4 w-4" />
-                <Label className="text-sm font-medium">Общая громкость: {masterVolume}%</Label>
+                <Label className="text-sm font-medium">Общая громкость: {settings.masterVolume}%</Label>
               </div>
               <Slider
-                value={[masterVolume]}
-                onValueChange={(value) => setMasterVolume(value[0])}
+                value={[settings.masterVolume]}
+                onValueChange={(value) => updateSetting('masterVolume', value[0])}
                 max={100}
                 step={5}
               />
@@ -173,7 +171,10 @@ const Header = forwardRef<HTMLElement, HeaderProps>(({
             {/* Buffer Size */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Размер буфера аудио</Label>
-              <Select value={bufferSize} onValueChange={setBufferSize}>
+              <Select value={settings.bufferSize} onValueChange={(v) => {
+                updateSetting('bufferSize', v);
+                toast.info('Размер буфера изменён. Применится при следующей загрузке аудио.');
+              }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -191,7 +192,7 @@ const Header = forwardRef<HTMLElement, HeaderProps>(({
             {/* Default Export Format */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Формат экспорта по умолчанию</Label>
-              <Select value={defaultFormat} onValueChange={setDefaultFormat}>
+              <Select value={settings.defaultFormat} onValueChange={(v) => updateSetting('defaultFormat', v as 'wav' | 'mp3')}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
