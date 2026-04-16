@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Download, FileAudio, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +13,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
+import { useSettings } from '@/contexts/SettingsContext';
 
 interface ExportDialogProps {
   onExport: (format: 'wav' | 'mp3', quality: number) => void;
@@ -21,9 +22,15 @@ interface ExportDialogProps {
 }
 
 const ExportDialog = ({ onExport, isExporting = false, trigger }: ExportDialogProps) => {
-  const [format, setFormat] = useState<'wav' | 'mp3'>('wav');
+  const { settings } = useSettings();
+  const [format, setFormat] = useState<'wav' | 'mp3'>(settings.defaultFormat);
   const [quality, setQuality] = useState(192);
   const [open, setOpen] = useState(false);
+
+  // Sync default format from settings
+  useEffect(() => {
+    setFormat(settings.defaultFormat);
+  }, [settings.defaultFormat]);
 
   const handleExport = () => {
     onExport(format, quality);

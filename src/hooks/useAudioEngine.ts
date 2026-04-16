@@ -349,10 +349,20 @@ export const useAudioEngine = (options: UseAudioEngineOptions = {}) => {
     }
   }, [effects, makeDistortionCurve, createReverbImpulse]);
 
-  // Update volume
+  // Update volume — also react to settings masterVolume
   useEffect(() => {
     if (masterGainRef.current) {
-      masterGainRef.current.gain.value = isMuted ? 0 : volume / 100;
+      // Read global master volume from localStorage settings
+      let globalMaster = 80;
+      try {
+        const stored = localStorage.getItem('soundstorm-settings');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (typeof parsed.masterVolume === 'number') globalMaster = parsed.masterVolume;
+        }
+      } catch {}
+      const effectiveVolume = isMuted ? 0 : (volume / 100) * (globalMaster / 100);
+      masterGainRef.current.gain.value = effectiveVolume;
     }
   }, [volume, isMuted]);
 
