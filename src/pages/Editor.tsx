@@ -180,7 +180,7 @@ const Editor = () => {
 
   return (
     <div className="min-h-screen bg-background gradient-mesh">
-      <Header projectName={fileName || 'Редактор'} />
+      <Header />
 
       <main className="container max-w-7xl mx-auto px-4 py-6 space-y-4">
         {/* Back Button & Title */}
