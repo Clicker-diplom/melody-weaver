@@ -1,7 +1,10 @@
 import { forwardRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Music, Settings, HelpCircle, Save, FolderOpen, LogOut } from 'lucide-react';
+import { Music, Settings, HelpCircle, Save, LogOut, Moon, Sun, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -11,16 +14,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface HeaderProps {
   onSave?: () => void;
-  onOpen?: () => void;
   className?: string;
 }
 
 const Header = forwardRef<HTMLElement, HeaderProps>(({
   onSave,
-  onOpen,
   className,
 }, ref) => {
   const { signOut } = useAuth();
@@ -28,13 +36,12 @@ const Header = forwardRef<HTMLElement, HeaderProps>(({
   const [showHelp, setShowHelp] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  const handleOpen = () => {
-    if (onOpen) {
-      onOpen();
-    } else {
-      navigate('/');
-    }
-  };
+  // Settings state
+  const [darkTheme, setDarkTheme] = useState(true);
+  const [autoSave, setAutoSave] = useState(false);
+  const [masterVolume, setMasterVolume] = useState(80);
+  const [bufferSize, setBufferSize] = useState('2048');
+  const [defaultFormat, setDefaultFormat] = useState('wav');
 
   const handleSave = () => {
     if (onSave) {
@@ -71,10 +78,6 @@ const Header = forwardRef<HTMLElement, HeaderProps>(({
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={handleOpen} className="hidden sm:flex">
-            <FolderOpen className="h-4 w-4 mr-2" />
-            Открыть
-          </Button>
           <Button variant="ghost" size="sm" onClick={handleSave} className="hidden sm:flex">
             <Save className="h-4 w-4 mr-2" />
             Сохранить
@@ -122,12 +125,86 @@ const Header = forwardRef<HTMLElement, HeaderProps>(({
           <DialogHeader>
             <DialogTitle>Настройки</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 text-sm text-muted-foreground">
-            <p>Настройки проекта будут доступны в следующих обновлениях.</p>
+          <div className="space-y-6 py-4">
+            {/* Theme Toggle */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {darkTheme ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                <Label htmlFor="theme-toggle" className="text-sm font-medium">
+                  Темная тема
+                </Label>
+              </div>
+              <Switch
+                id="theme-toggle"
+                checked={darkTheme}
+                onCheckedChange={setDarkTheme}
+              />
+            </div>
+
+            {/* Auto Save */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Save className="h-4 w-4" />
+                <Label htmlFor="autosave-toggle" className="text-sm font-medium">
+                  Автосохранение
+                </Label>
+              </div>
+              <Switch
+                id="autosave-toggle"
+                checked={autoSave}
+                onCheckedChange={setAutoSave}
+              />
+            </div>
+
+            {/* Master Volume */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Volume2 className="h-4 w-4" />
+                <Label className="text-sm font-medium">Общая громкость: {masterVolume}%</Label>
+              </div>
+              <Slider
+                value={[masterVolume]}
+                onValueChange={(value) => setMasterVolume(value[0])}
+                max={100}
+                step={5}
+              />
+            </div>
+
+            {/* Buffer Size */}
             <div className="space-y-2">
+              <Label className="text-sm font-medium">Размер буфера аудио</Label>
+              <Select value={bufferSize} onValueChange={setBufferSize}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="256">256 (минимальная задержка)</SelectItem>
+                  <SelectItem value="512">512</SelectItem>
+                  <SelectItem value="1024">1024</SelectItem>
+                  <SelectItem value="2048">2048 (стандарт)</SelectItem>
+                  <SelectItem value="4096">4096</SelectItem>
+                  <SelectItem value="8192">8192 (максимальная стабильность)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Default Export Format */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Формат экспорта по умолчанию</Label>
+              <Select value={defaultFormat} onValueChange={setDefaultFormat}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="wav">WAV (без потерь)</SelectItem>
+                  <SelectItem value="mp3">MP3 (сжатие)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="pt-4 border-t border-border text-xs text-muted-foreground space-y-1">
               <p><strong className="text-foreground">Версия:</strong> 1.0.0</p>
               <p><strong className="text-foreground">Движок:</strong> Web Audio API</p>
-              <p><strong className="text-foreground">Форматы:</strong> WAV, MP3</p>
             </div>
           </div>
         </DialogContent>
