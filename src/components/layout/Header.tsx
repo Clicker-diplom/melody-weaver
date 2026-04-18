@@ -189,20 +189,6 @@ const Header = forwardRef<HTMLElement, HeaderProps>(({
               </Select>
             </div>
 
-            {/* Default Export Format */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Формат экспорта по умолчанию</Label>
-              <Select value={settings.defaultFormat} onValueChange={(v) => updateSetting('defaultFormat', v as 'wav' | 'mp3')}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="wav">WAV (без потерь)</SelectItem>
-                  <SelectItem value="mp3">MP3 (сжатие)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="pt-4 border-t border-border text-xs text-muted-foreground space-y-1">
               <p><strong className="text-foreground">Версия:</strong> 1.0.0</p>
               <p><strong className="text-foreground">Движок:</strong> Web Audio API</p>
